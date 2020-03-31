@@ -2,18 +2,17 @@ package client
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
+import domain.ethereum.Transaction
+
 import scala.concurrent.Future
-import domain.Blockchain
-import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import spray.json.DefaultJsonProtocol._
-import spray.json._
 
 sealed trait RequestType
-case class BlockchainRequest() extends RequestType
+final case class BlockchainRequest() extends RequestType
+final case class TransactionRequest(transactionHash: String) extends RequestType
 
 sealed trait Messages
 case class Start(operationType: RequestType)
@@ -27,14 +26,16 @@ class ApiClient extends Actor with ActorLogging {
   private final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
   private val http: HttpExt = Http(context.system)
 
+  override def postStop(): Unit = http.shutdownAllConnectionPools()
+
   override def receive: Receive = {
     case HttpResponse(StatusCodes.OK, _, entity, _) =>
-      implicit val petFormat: RootJsonFormat[Blockchain] = jsonFormat14(Blockchain)
 
-      val pet: Future[Blockchain] = Unmarshal(entity).to[Blockchain]
-      pet.onComplete(x => {
+      val transaction: Future[Transaction] = Unmarshal(entity).to[Transaction]
+
+      transaction.onComplete(x => {
         if (x.isSuccess) {
-          context.parent ! Success(Seq(x.get.height.toString, x.get.name))
+          context.parent ! Success(x.get.addresses.getOrElse(Seq()))
         } else {
           context.parent ! Error("Json parsing error.")
         }
@@ -44,19 +45,24 @@ class ApiClient extends Actor with ActorLogging {
       context.parent ! Error("Request failed, response code: " + code)
     case Get(url) =>
       http.singleRequest(HttpRequest(uri = url)).pipeTo(self)
-
   }
+}
+
+object ApiMaster {
+
 }
 
 class ApiMaster extends Actor with ActorLogging {
 
   val client: ActorRef = context.actorOf(Props[ApiClient], "ApiClient")
 
+  case class ApiMasterCommand()
+
   override def receive: Receive = {
     case Start(operationType) =>
       operationType match {
-        case BlockchainRequest() =>
-          client ! Get("https://api.blockcypher.com/v1/eth/main")
+        case TransactionRequest(transactionHash) =>
+          client ! Get("https://api.blockcypher.com/v1/eth/main/txs/" + transactionHash)
       }
     case Success(results) =>
       results.foreach(log.info(_))
@@ -72,6 +78,6 @@ object Client {
     val system = ActorSystem("Test")
 
     val master = system.actorOf(Props[ApiMaster], name = "Master")
-    master ! Start(BlockchainRequest())
+    master ! Start(TransactionRequest("8f39fb4940c084460da00a876a521ef2ba84ad6ea8d2f5628c9f1f8aeb395342"))
   }
 }
