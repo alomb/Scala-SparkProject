@@ -20,7 +20,6 @@ object HelloWorld {
   def main(args: Array[String]) {
     println("Program starts")
 
-    val path = "test_ether.json"
     val txs = Array(
       "161af0b54c17b64963947bb79c7f4de6c0aacf6b87d6e94f807c7d399e4bcf22",
       "9625cb071eb86157c524b08174acfe2132f052048a715e662a820081fc677842",
