@@ -25,6 +25,10 @@ class Worker extends Actor with ActorLogging {
   private final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
   private val http: HttpExt = Http(context.system)
 
+  override def postStop(): Unit = {
+    http.shutdownAllConnectionPools()
+  }
+
   override def receive: Receive = {
     case Get(url) =>
       // Requesting Future[HttpResponse]
