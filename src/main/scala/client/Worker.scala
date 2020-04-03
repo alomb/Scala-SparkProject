@@ -1,15 +1,13 @@
 package client
 
 import akka.actor.{Actor, ActorLogging}
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
-import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, ResponseEntity, StatusCodes}
+import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import akka.http.scaladsl.{Http, HttpExt}
-import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import client.Master.UnknownMessage
-import client.Worker.Get
-import domain.ethereum.Transaction
-
+import client.Worker.Request
+import akka.pattern.pipe
 import scala.concurrent.Future
 
 /**
@@ -19,7 +17,7 @@ import scala.concurrent.Future
  * the actor itself and then parsed.
  * 2) The parse (unmarshalling) of the JSON object is provided by the akka-http-spray-json module.
  */
-class Worker extends Actor with ActorLogging {
+class Worker[T](implicit um: Unmarshaller[ResponseEntity, List[T]]) extends Actor with ActorLogging {
   import context.dispatcher
 
   private final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
@@ -30,16 +28,25 @@ class Worker extends Actor with ActorLogging {
   }
 
   override def receive: Receive = {
-    case Get(url) =>
+
+    case Request(url, fields) =>
+      val map = scala.collection.mutable.Map[String, String]()
+
       // Requesting Future[HttpResponse]
       http.singleRequest(HttpRequest(uri = url)).flatMap {
         case HttpResponse(StatusCodes.OK, _, entity, _) =>
-          // Parsing (Future[List[Transaction]])
-          Unmarshal(entity).to[List[Transaction]]
-      }.flatMap {
-        // Extracting (Future[List[List[String]]])
-        p => Future {p.flatMap(_.addresses)}
-      }.pipeTo(sender)
+          // Parsing (Future[List[T]])
+          Unmarshal(entity).to[List[T]]
+      }.flatMap(objects => {
+        // Extracting fields (Future[List[List[(String, String)]]])
+        Future {objects.map(obj =>
+          fields.map(fld =>
+            obj.getClass.getDeclaredMethod(fld).invoke(obj)
+          )
+        ).map(res => {
+          res.zip(fields)
+        })}
+      }).pipeTo(sender)
 
     case _ =>
       sender ! UnknownMessage("Received an unknown message")
@@ -47,5 +54,5 @@ class Worker extends Actor with ActorLogging {
 }
 
 object Worker {
-  case class Get(url: String)
+  case class Request(url: String, fields: Seq[String])
 }
