@@ -1,15 +1,18 @@
 package client
 
 import akka.actor.{ActorSystem, Props}
-import client.Master.{Start, TxsToAdsRequest}
+import client.MasterGraph.ExtractAddresses
+
+import scala.collection.mutable
 
 object Client {
   def main(args: Array[String]): Unit = {
-    val system = ActorSystem("Test")
+    val system: ActorSystem = ActorSystem("Test")
+    val initialSet: mutable.Set[String] = mutable.HashSet("e20afe0400e92530c4baea9c440ce8dbef9965ff77fd8991b3014989f348f4a7",
+      "1c710b7f34136b284fd1398e06c458491f847ac0c489d7ab050193e10cb8d805",
+      "ddce4c923f091aefcc81eae9e3c1c92798dad7b11cc384e01d0db392ed98ccdd")
 
-    val master = system.actorOf(Props[Master], name = "Master")
-    master ! Start(TxsToAdsRequest(List("99ec589ab8cb9498093c4d0c534bdcfd8bd04bfead1d869e3a79165a4f98af0d",
-      "ba44f568dc77d33893261c041994eeaef17d108a1845ccb9e376afea2acdd0e9",
-      "99ec589ab8cb9498093c4d0c534bdcfd8bd04bfead1d869e3a79165a4f98af0d")))
+    val master = system.actorOf(Props(new MasterGraph(initialSet, 31)), name = "Master")
+    master ! ExtractAddresses(0, 3)
   }
 }
