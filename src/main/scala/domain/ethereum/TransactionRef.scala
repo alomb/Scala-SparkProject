@@ -10,18 +10,18 @@ import spray.json._
  * - ref_balance: Option[Long]
  * - confirmed: Option[String]
  * - double_of: Option[String]
+ * - block_height: Option[Long]
  */
-final case class TransactionRef(block_height: Option[Long],
-                                tx_hash: Option[String],
-                                tx_input_n: Option[Int],
-                                tx_output_n: Option[Int],
-                                value: Option[Long],
-                                double_spend: Option[Boolean],
-                                confirmations: Option[Long],
+final case class TransactionRef(tx_hash: String,
+                                tx_input_n: Int,
+                                tx_output_n: Int,
+                                value: Long,
+                                double_spend: Boolean,
+                                confirmations: Long,
                                 ref_balance: Option[Long],
                                 confirmed: Option[String],
                                 double_of: Option[String])
 
 object TransactionRef extends DefaultJsonProtocol with SprayJsonSupport {
-  implicit val transactionRefFormat: RootJsonFormat[TransactionRef] = jsonFormat10(TransactionRef.apply)
+  implicit val transactionRefFormat: RootJsonFormat[TransactionRef] = jsonFormat9(TransactionRef.apply)
 }

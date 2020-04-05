@@ -1,11 +1,10 @@
 package client
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props, Timers}
 import akka.pattern.ask
 import akka.util.Timeout
-import client.MasterGraph.{End, ExtractAddresses, ExtractTransactions}
 import client.Worker.Request
-import domain.ethereum.{Address, Transaction, TransactionInputs, TransactionOutputs, TransactionRef}
+import domain.ethereum._
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -13,7 +12,11 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
-class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Actor with ActorLogging {
+class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Actor with ActorLogging with Timers {
+  // To import the timer key
+  import MasterGraph._
+
+  // Workers
   private val workerTxToAd: ActorRef = context.actorOf(Props(new Worker[Transaction]()), "workerTxToAd")
   private val workerAdToTx: ActorRef = context.actorOf(Props(new Worker[Address]()), "workerAdToTx")
 
@@ -29,7 +32,6 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
   private val txToAdFields =  Seq("hash", "inputs", "outputs", "total")
   private val AdToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/addrs/"
   private val adToTxfields =  Seq("address", "txrefs", "balance")
-
   private val TxRefLimit: Int = 5
   private val MaxMultipleRequests: Int = 3
   private val MaxTotalRequests: Int = 200
@@ -55,10 +57,10 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
             case Success(txs) =>
               txs.foreach(e => {
                 // Extract fields
-                val hash: String = e.head._1.asInstanceOf[Option[String]].get
-                val in: String = e(1)._1.asInstanceOf[Option[List[TransactionInputs]]].get.head.addresses.get.head
-                val out: String = e(2)._1.asInstanceOf[Option[List[TransactionOutputs]]].get.head.addresses.get.head
-                val tot: Long = e(3)._1.asInstanceOf[Option[Long]].get
+                val hash: String = e.head._1.asInstanceOf[String]
+                val in: String = e(1)._1.asInstanceOf[List[TransactionInputs]].head.addresses.head
+                val out: String = e(2)._1.asInstanceOf[List[TransactionOutputs]].head.addresses.head
+                val tot: Long = e(3)._1.asInstanceOf[Long]
                 //println(s"$in -> $hash ($tot) -> $out")
                 // Add new nodes
                 List(in, out).
@@ -71,10 +73,9 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
                 edges(hash) = (nodes(in)_1, nodes(out)_1, tot)
               })
             case Failure(txs) =>
-              println(s"Completed with errors $txs")
+              log.info(s"Parsing completed with errors $txs")
           }
-          Thread.sleep(1000)
-          self ! ExtractTransactions(iterations, requests + requestedTransactions.size, newAds)
+          timers.startSingleTimer(TickKey, ExtractTransactions(iterations, requests + requestedTransactions.size, newAds), 1.second)
         }
       }
     case ExtractTransactions(iterations, requests, newAds) =>
@@ -82,7 +83,7 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
         // Maximum number of requests or iterations has been reached
         self ! End(iterations, requests)
       } else if (newAds.isEmpty) {
-        // Addresses all updated get new transactions
+        // The addresses are all updated another iteration is started
         self ! ExtractAddresses(iterations + 1, requests)
       } else {
         // Process only one address to minimize possible errors
@@ -94,9 +95,9 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
             case Success(ads) =>
               ads.foreach(e => {
                 // Extract fields
-                val address: String = e.head._1.asInstanceOf[Option[String]].get
-                val txrefs: List[String] = e(1)._1.asInstanceOf[Option[List[TransactionRef]]].get.map(_.tx_hash.get)
-                val balance: Long = e(2)._1.asInstanceOf[Option[Long]].get
+                val address: String = e.head._1.asInstanceOf[String]
+                val txrefs: List[String] = e(1)._1.asInstanceOf[Option[List[TransactionRef]]].getOrElse(List()).map(_.tx_hash)
+                val balance: Long = e(2)._1.asInstanceOf[Long]
                 //println(s"$address: $txrefs, $balance")
                 // Update pool of transactions
                 txsPool ++= txrefs.toSet
@@ -104,13 +105,12 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
                 nodes(address) = (nodes(address)._1, Some(balance))
               })
             case Failure(ads) =>
-              println(s"Completed with errors $ads")
+              log.info(s"Parsing completed with errors $ads")
           }
-          Thread.sleep(1000)
-          self ! ExtractTransactions(iterations, requests + 1, newAds - newAds.head)
+          timers.startSingleTimer(TickKey, ExtractTransactions(iterations, requests + 1, newAds - newAds.head), 1.second)
         })
       }
-    case End(iterations, requests) =>
+    case End(_, _) =>
       println("Nodes: ")
       nodes.foreach(println(_))
       println("Edges: ")
@@ -131,4 +131,5 @@ object MasterGraph {
   case class ExtractTransactions(iterations: Int, requests: Int, newAddresses: mutable.Set[String]) extends State
   case class End(iterations: Int, requests: Int) extends State
 
+  private case object TickKey
 }

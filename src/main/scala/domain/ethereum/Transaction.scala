@@ -18,26 +18,26 @@ import spray.json.{DefaultJsonProtocol, RootJsonFormat}
  * - execution_error: Option[String]
  * - parent_tx: Option[String]
  * - confidence: Option[Long]
+ * - relayed_by: Option[String],
  */
-final case class Transaction(block_height: Option[Long],
-                             hash: Option[String],
-                             addresses: Option[List[String]],
-                             total: Option[Long],
-                             fees: Option[Long],
-                             size: Option[Long],
-                             gas_used: Option[Long],
-                             gas_price: Option[Long],
-                             relayed_by: Option[String],
-                             received: Option[String],
-                             ver: Option[Int],
-                             double_spend: Option[Boolean],
-                             vin_sz: Option[Int],
-                             vout_sz: Option[Int],
-                             confirmations: Option[Long],
-                             inputs: Option[List[TransactionInputs]],
-                             outputs: Option[List[TransactionOutputs]])
+final case class Transaction(block_height: Long,
+                             hash: String,
+                             addresses: List[String],
+                             total: Long,
+                             fees: Long,
+                             size: Long,
+                             gas_used: Long,
+                             gas_price: Long,
+                             received: String,
+                             ver: Int,
+                             double_spend: Boolean,
+                             vin_sz: Int,
+                             vout_sz: Int,
+                             confirmations: Long,
+                             inputs: List[TransactionInputs],
+                             outputs: List[TransactionOutputs])
 
 object Transaction extends DefaultJsonProtocol with SprayJsonSupport {
-  implicit val transactionFormat: RootJsonFormat[Transaction] = rootFormat(lazyFormat(jsonFormat17(Transaction.apply)))
+  implicit val transactionFormat: RootJsonFormat[Transaction] = rootFormat(lazyFormat(jsonFormat16(Transaction.apply)))
 }
 

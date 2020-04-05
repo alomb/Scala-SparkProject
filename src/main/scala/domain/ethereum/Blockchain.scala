@@ -10,18 +10,18 @@ import spray.json.{DefaultJsonProtocol, RootJsonFormat}
  * - last_fork_height: Option[Long]
  * - last_fork_hash: Option[String]
  */
-final case class Blockchain(name: Option[String],
-                            height: Option[Long],
-                            hash: Option[String],
-                            time: Option[String],
-                            latest_url: Option[String],
-                            previous_hash: Option[String],
-                            previous_url: Option[String],
-                            peer_count: Option[Long],
-                            unconfirmed_count: Option[Long],
-                            high_gas_price: Option[Long],
-                            medium_gas_price: Option[Long],
-                            low_gas_price: Option[Long])
+final case class Blockchain(name: String,
+                            height: Long,
+                            hash: String,
+                            time: String,
+                            latest_url: String,
+                            previous_hash: String,
+                            previous_url: String,
+                            peer_count: Long,
+                            unconfirmed_count: Long,
+                            high_gas_price: Long,
+                            medium_gas_price: Long,
+                            low_gas_price: Long)
 
 object Blockchain extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val blockchainFormat: RootJsonFormat[Blockchain] = jsonFormat12(Blockchain.apply)
