@@ -13,6 +13,6 @@ object Client {
       "ddce4c923f091aefcc81eae9e3c1c92798dad7b11cc384e01d0db392ed98ccdd")
 
     val master = system.actorOf(Props(new MasterGraph(initialSet, 0)), name = "Master")
-    master ! ExtractAddresses(0, 3)
+    master ! ExtractAddresses(0)
   }
 }
