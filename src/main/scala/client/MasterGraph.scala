@@ -13,7 +13,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
-class MasterGraph(txsPool: mutable.Set[String], max_iterations: Int) extends Actor with ActorLogging {
+class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Actor with ActorLogging {
   private val workerTxToAd: ActorRef = context.actorOf(Props(new Worker[Transaction]()), "workerTxToAd")
   private val workerAdToTx: ActorRef = context.actorOf(Props(new Worker[Address]()), "workerAdToTx")
 
@@ -25,23 +25,27 @@ class MasterGraph(txsPool: mutable.Set[String], max_iterations: Int) extends Act
   // The nodes of the graph: hash -> (sender node id, receiver node id, total)
   private val edges: mutable.Map[String, (Long, Long, Long)] = new mutable.HashMap[String, (Long, Long, Long)]()
 
-  private val txToAdBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/txs/"
+  private val TxToAdBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/txs/"
   private val txToAdFields =  Seq("hash", "inputs", "outputs", "total")
-  private val adToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/addrs/"
+  private val AdToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/addrs/"
   private val adToTxfields =  Seq("address", "txrefs", "balance")
 
-  private val txRefLimit: Int = 5
+  private val TxRefLimit: Int = 5
+  private val MaxMultipleRequests: Int = 3
+  private val MaxTotalRequests: Int = 200
 
   override def receive: Receive = {
-    case ExtractAddresses(iteration) =>
-      if (iteration == max_iterations) {
-        // Maximum number of iterations reached
-        self ! End()
+    case ExtractAddresses(iterations, requests) =>
+      if (requests == MaxTotalRequests || iterations == maxIterations || txsPool.isEmpty) {
+        // Maximum number of requests or iterations has been reached or there are no transactions to analyze
+        self ! End(iterations, requests)
       } else {
-        val requestedTransactions: mutable.Set[String] = txsPool.take(3)
-        val requestUrl: String = txToAdBaseUrl + requestedTransactions.mkString(";")
+        // Retrieve at most TxRetrieved fresh new transactions
+        val requestedTransactions: mutable.Set[String] = txsPool.take(Math.min(MaxMultipleRequests, MaxTotalRequests - requests))
+        // Remove from the pool the parsed transactions
         txsPool --= requestedTransactions
-        println(s"Request Transactions $requestUrl")
+
+        val requestUrl: String = TxToAdBaseUrl + requestedTransactions.mkString(";")
         val request: Future[List[List[(Any, String)]]] = (workerTxToAd ? Request(requestUrl, txToAdFields, requestedTransactions.size == 1)).
           mapTo[List[List[(Any, String)]]]
         val newAds: mutable.Set[String] = new mutable.HashSet[String]()
@@ -55,7 +59,7 @@ class MasterGraph(txsPool: mutable.Set[String], max_iterations: Int) extends Act
                 val in: String = e(1)._1.asInstanceOf[Option[List[TransactionInputs]]].get.head.addresses.get.head
                 val out: String = e(2)._1.asInstanceOf[Option[List[TransactionOutputs]]].get.head.addresses.get.head
                 val tot: Long = e(3)._1.asInstanceOf[Option[Long]].get
-                println(s"$in -> $hash ($tot) -> $out")
+                //println(s"$in -> $hash ($tot) -> $out")
                 // Add new nodes
                 List(in, out).
                   filter(!nodes.contains(_)).
@@ -70,25 +74,19 @@ class MasterGraph(txsPool: mutable.Set[String], max_iterations: Int) extends Act
               println(s"Completed with errors $txs")
           }
           Thread.sleep(1000)
-          self ! ExtractTransactions(iteration, requestedTransactions.size, newAds)
-          println("_________________________")
+          self ! ExtractTransactions(iterations, requests + requestedTransactions.size, newAds)
         }
       }
-    case ExtractTransactions(iteration, requests, newAds) =>
-      if (requests == 0) {
-        // No requests previously made: process is finished
-        self ! End()
-      } else if (iteration == max_iterations) {
-        // Maximum number of iterations reached: process is finished
-        self ! End()
+    case ExtractTransactions(iterations, requests, newAds) =>
+      if (requests == MaxTotalRequests || iterations == maxIterations) {
+        // Maximum number of requests or iterations has been reached
+        self ! End(iterations, requests)
       } else if (newAds.isEmpty) {
         // Addresses all updated get new transactions
-        println("_________________________")
-        self ! ExtractAddresses(iteration + 1)
+        self ! ExtractAddresses(iterations + 1, requests)
       } else {
         // Process only one address to minimize possible errors
-        val requestUrl: String = adToTxBaseUrl + newAds.head + "?limit=" + txRefLimit
-        println(s"Request Addresses $requestUrl")
+        val requestUrl: String = AdToTxBaseUrl + newAds.head + "?limit=" + TxRefLimit
         val request: Future[List[List[(Any, String)]]] = (workerAdToTx ? Request(requestUrl, adToTxfields, single = true)).
           mapTo[List[List[(Any, String)]]]
         request onComplete (parsedAds => {
@@ -99,7 +97,7 @@ class MasterGraph(txsPool: mutable.Set[String], max_iterations: Int) extends Act
                 val address: String = e.head._1.asInstanceOf[Option[String]].get
                 val txrefs: List[String] = e(1)._1.asInstanceOf[Option[List[TransactionRef]]].get.map(_.tx_hash.get)
                 val balance: Long = e(2)._1.asInstanceOf[Option[Long]].get
-                println(s"$address: $txrefs, $balance")
+                //println(s"$address: $txrefs, $balance")
                 // Update pool of transactions
                 txsPool ++= txrefs.toSet
                 // Update new nodes
@@ -109,10 +107,10 @@ class MasterGraph(txsPool: mutable.Set[String], max_iterations: Int) extends Act
               println(s"Completed with errors $ads")
           }
           Thread.sleep(1000)
-          self ! ExtractTransactions(iteration, 1, newAds - newAds.head)
+          self ! ExtractTransactions(iterations, requests + 1, newAds - newAds.head)
         })
       }
-    case End() =>
+    case End(iterations, requests) =>
       println("Nodes: ")
       nodes.foreach(println(_))
       println("Edges: ")
@@ -124,9 +122,13 @@ class MasterGraph(txsPool: mutable.Set[String], max_iterations: Int) extends Act
 }
 
 object MasterGraph {
-  sealed trait State
-  case class ExtractAddresses(iteration: Int) extends State
-  case class ExtractTransactions(iteration: Int, requests: Int, newAddresses: mutable.Set[String]) extends State
-  case class End() extends State
+  sealed trait StateT
+  abstract class State() extends StateT{
+    def iterations: Int
+    def requests: Int
+  }
+  case class ExtractAddresses(iterations: Int, requests: Int)
+  case class ExtractTransactions(iterations: Int, requests: Int, newAddresses: mutable.Set[String]) extends State
+  case class End(iterations: Int, requests: Int) extends State
 
 }

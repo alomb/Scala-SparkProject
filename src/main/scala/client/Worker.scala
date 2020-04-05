@@ -20,7 +20,7 @@ import scala.concurrent.Future
 class Worker[T](implicit val sum: Unmarshaller[ResponseEntity, T], implicit val mum: Unmarshaller[ResponseEntity, List[T]]) extends Actor with ActorLogging {
   import context.dispatcher
 
-  private final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
+  private implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
   private val http: HttpExt = Http(context.system)
 
   override def postStop(): Unit = {
