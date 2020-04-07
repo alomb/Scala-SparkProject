@@ -4,11 +4,12 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props, Timers}
 import akka.pattern.ask
 import akka.util.Timeout
 import client.Worker.Request
-import domain.ethereum._
+import client.extractors.{AdToTxExtraction, AdToTxExtractor, TxToAdExtraction, TxToAdExtractor}
+import domain.{Address, Transaction}
 
 import scala.collection.mutable
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
@@ -16,9 +17,14 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
   // To import the timer key
   import MasterGraph._
 
+  private implicit val txToAdExtraction: TxToAdExtractor = new TxToAdExtractor()
+  private implicit val adToTxExtraction: AdToTxExtractor = new AdToTxExtractor()
+
   // Workers
-  private val workerTxToAd: ActorRef = context.actorOf(Props(new Worker[Transaction]()), "workerTxToAd")
-  private val workerAdToTx: ActorRef = context.actorOf(Props(new Worker[Address]()), "workerAdToTx")
+  private val workerTxToAd: ActorRef = context.actorOf(Props(new Worker[Transaction, TxToAdExtraction]()),
+    "workerTxToAd")
+  private val workerAdToTx: ActorRef = context.actorOf(Props(new Worker[Address, AdToTxExtraction]()),
+    "workerAdToTx")
 
   private implicit val timeout: Timeout = Timeout(5 seconds)
   private implicit val ec: ExecutionContext = context.dispatcher
@@ -29,95 +35,95 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
   private val edges: mutable.Map[String, (Long, Long, Long)] = new mutable.HashMap[String, (Long, Long, Long)]()
 
   private val TxToAdBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/txs/"
-  private val txToAdFields =  Seq("hash", "inputs", "outputs", "total")
   private val AdToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/addrs/"
-  private val adToTxfields =  Seq("address", "txrefs", "balance")
   private val TxRefLimit: Int = 5
   private val MaxMultipleRequests: Int = 3
   private val MaxTotalRequests: Int = 200
 
   override def receive: Receive = {
+    case ExtractAddresses(this.maxIterations, requests) =>
+      self ! End(maxIterations, requests)
+    case ExtractAddresses(iterations, this.MaxTotalRequests) =>
+      self ! End(iterations, this.MaxTotalRequests)
     case ExtractAddresses(iterations, requests) =>
-      if (requests == MaxTotalRequests || iterations == maxIterations || txsPool.isEmpty) {
+      if (txsPool.isEmpty) {
         // Maximum number of requests or iterations has been reached or there are no transactions to analyze
         self ! End(iterations, requests)
       } else {
         // Retrieve at most TxRetrieved fresh new transactions
-        val requestedTransactions: mutable.Set[String] = txsPool.take(Math.min(MaxMultipleRequests, MaxTotalRequests - requests))
+        val txToTake: Int = Math.min(MaxMultipleRequests, MaxTotalRequests - requests)
+        val requestedTransactions: mutable.Set[String] = txsPool.take(txToTake)
         // Remove from the pool the parsed transactions
         txsPool --= requestedTransactions
 
         val requestUrl: String = TxToAdBaseUrl + requestedTransactions.mkString(";")
-        val request: Future[List[List[(Any, String)]]] = (workerTxToAd ? Request(requestUrl, txToAdFields, requestedTransactions.size == 1)).
-          mapTo[List[List[(Any, String)]]]
         val newAds: mutable.Set[String] = new mutable.HashSet[String]()
 
-        request onComplete {parsedTxs =>
-          parsedTxs match {
-            case Success(txs) =>
-              txs.foreach(e => {
-                // Extract fields
-                val hash: String = e.head._1.asInstanceOf[String]
-                val in: String = e(1)._1.asInstanceOf[List[TransactionInputs]].head.addresses.head
-                val out: String = e(2)._1.asInstanceOf[List[TransactionOutputs]].head.addresses.head
-                val tot: Long = e(3)._1.asInstanceOf[Long]
-                //println(s"$in -> $hash ($tot) -> $out")
-                // Add new nodes
-                List(in, out).
-                  filter(!nodes.contains(_)).
-                  foreach(a => {
-                    newAds += a
-                    nodes(a) = (nodes.keySet.size + 1, None)
-                  })
-                // Add edge
-                edges(hash) = (nodes(in)_1, nodes(out)_1, tot)
-              })
-            case Failure(txs) =>
-              log.info(s"Parsing completed with errors $txs")
+        (workerTxToAd ? Request(requestUrl, requestedTransactions.size == 1)).
+          mapTo[List[TxToAdExtraction]].
+          onComplete {parsedTxs =>
+            parsedTxs match {
+              case Success(txs) =>
+                txs.foreach(el => {
+                  // Add new nodes
+                  List(el.in.map(_.addresses.head).head, el.out.map(_.addresses.head).head).
+                    filter(!nodes.contains(_)).
+                    foreach(a => {
+                      newAds += a
+                      nodes(a) = (nodes.keySet.size + 1, None)
+                    })
+                  // Add edge
+                  edges(el.hash) = (nodes(el.in.map(_.addresses.head).head)_1,
+                    nodes(el.out.map(_.addresses.head).head)_1,
+                    el.total)
+                })
+              case Failure(txs) =>
+                log.info(s"ExtractAddresses: Parsing completed with errors $txs")
+            }
+            timers.startSingleTimer(TickKey,
+              ExtractTransactions(iterations, requests + requestedTransactions.size, newAds),
+              1.second)
           }
-          timers.startSingleTimer(TickKey, ExtractTransactions(iterations, requests + requestedTransactions.size, newAds), 1.second)
-        }
       }
+    case ExtractTransactions(this.maxIterations, requests, _) =>
+      self ! End(this.maxIterations, requests)
+    case ExtractTransactions(iterations, this.MaxTotalRequests, _) =>
+      self ! End(iterations, this.MaxTotalRequests)
     case ExtractTransactions(iterations, requests, newAds) =>
-      if (requests == MaxTotalRequests || iterations == maxIterations) {
-        // Maximum number of requests or iterations has been reached
-        self ! End(iterations, requests)
-      } else if (newAds.isEmpty) {
+      if (newAds.isEmpty) {
         // The addresses are all updated another iteration is started
         self ! ExtractAddresses(iterations + 1, requests)
       } else {
         // Process only one address to minimize possible errors
         val requestUrl: String = AdToTxBaseUrl + newAds.head + "?limit=" + TxRefLimit
-        val request: Future[List[List[(Any, String)]]] = (workerAdToTx ? Request(requestUrl, adToTxfields, single = true)).
-          mapTo[List[List[(Any, String)]]]
-        request onComplete (parsedAds => {
-          parsedAds match {
-            case Success(ads) =>
-              ads.foreach(e => {
-                // Extract fields
-                val address: String = e.head._1.asInstanceOf[String]
-                val txrefs: List[String] = e(1)._1.asInstanceOf[Option[List[TransactionRef]]].getOrElse(List()).map(_.tx_hash)
-                val balance: Long = e(2)._1.asInstanceOf[Long]
-                //println(s"$address: $txrefs, $balance")
-                // Update pool of transactions
-                txsPool ++= txrefs.toSet
-                // Update new nodes
-                nodes(address) = (nodes(address)._1, Some(balance))
-              })
-            case Failure(ads) =>
-              log.info(s"Parsing completed with errors $ads")
+
+        (workerAdToTx ? Request(requestUrl, single = true)).
+          mapTo[List[AdToTxExtraction]].
+          onComplete {parsedAds =>
+            parsedAds match {
+              case Success(ads) =>
+                ads.foreach(el => {
+                  // Update pool of transactions
+                  txsPool ++= el.txrefs.getOrElse(List()).map(_.tx_hash).toSet
+                  // Update new nodes
+                  nodes(el.address) = (nodes(el.address)._1, Some(el.balance))
+                })
+              case Failure(ads) =>
+                log.info(s"ExtractTransactions: Parsing completed with errors $ads")
+            }
+            timers.startSingleTimer(TickKey,
+              ExtractTransactions(iterations, requests + 1, newAds - newAds.head),
+              1.second)
           }
-          timers.startSingleTimer(TickKey, ExtractTransactions(iterations, requests + 1, newAds - newAds.head), 1.second)
-        })
       }
     case End(_, _) =>
-      println("Nodes: ")
-      nodes.foreach(println(_))
-      println("Edges: ")
-      edges.foreach(println(_))
+      log.info("Nodes: ")
+      nodes.foreach(n => log.info(n.toString()))
+      log.info("Edges: ")
+      edges.foreach(e => log.info(e.toString()))
       context.system.terminate()
-    case _ =>
-      println("Unknown command")
+    case cmd =>
+      log.info("Unknown command " + cmd)
   }
 }
 

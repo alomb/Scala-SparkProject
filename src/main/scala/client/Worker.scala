@@ -7,6 +7,8 @@ import akka.http.scaladsl.{Http, HttpExt}
 import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import client.Worker.Request
+import client.extractors.{Extraction, Extractor}
+import domain.Ethereum
 
 import scala.concurrent.Future
 
@@ -17,7 +19,10 @@ import scala.concurrent.Future
  * the actor itself and then parsed.
  * 2) The parse (unmarshalling) of the JSON object is provided by the akka-http-spray-json module.
  */
-class Worker[T](implicit val sum: Unmarshaller[ResponseEntity, T], implicit val mum: Unmarshaller[ResponseEntity, List[T]]) extends Actor with ActorLogging {
+class Worker[T <: Ethereum, U <: Extraction](implicit val ex: Extractor[T, U],
+                                             implicit val sum: Unmarshaller[ResponseEntity, T],
+                                             implicit val mum: Unmarshaller[ResponseEntity, List[T]]) extends Actor with ActorLogging {
+
   import context.dispatcher
 
   private implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
@@ -29,7 +34,7 @@ class Worker[T](implicit val sum: Unmarshaller[ResponseEntity, T], implicit val 
 
   override def receive: Receive = {
 
-    case Request(url, fields, single) =>
+    case Request(url, single) =>
       // Requesting Future[HttpResponse]
       http.singleRequest(HttpRequest(uri = url)).flatMap {
         case HttpResponse(StatusCodes.OK, _, entity, _) =>
@@ -42,22 +47,16 @@ class Worker[T](implicit val sum: Unmarshaller[ResponseEntity, T], implicit val 
           Future{
             List[T]()
           }
-      }.flatMap(objects => {
-        // Extracting fields (Future[List[List[(String, String)]]])
-        Future {objects.map(obj =>
-          fields.map(fld =>
-            obj.getClass.getDeclaredMethod(fld).invoke(obj)
-          )
-        ).map(res => {
-          res.zip(fields)
-        })}
+      }.flatMap(obj => {
+        // Extracting fields (Future[List[U]])
+        Future {ex.extract(obj)}
       }).pipeTo(sender)
 
-    case _ =>
-      println("Received an unknown message")
+    case msg =>
+      log.info("Received an unknown message " + msg)
   }
 }
 
 object Worker {
-  case class Request(url: String, fields: Seq[String], single: Boolean = false)
+  case class Request(url: String, single: Boolean = false)
 }
