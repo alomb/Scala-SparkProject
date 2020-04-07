@@ -4,8 +4,8 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props, Timers}
 import akka.pattern.ask
 import akka.util.Timeout
 import client.Worker.Request
-import client.extractors.{AdToTxExtraction, AdToTxExtractor, TxToAdExtraction, TxToAdExtractor}
-import domain.{Address, Transaction}
+import client.extractors._
+import domain.{Address, Block, Transaction}
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
@@ -13,22 +13,27 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
-class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Actor with ActorLogging with Timers {
+class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with ActorLogging with Timers {
   // To import the timer key
   import MasterGraph._
 
   private implicit val txToAdExtraction: TxToAdExtractor = new TxToAdExtractor()
   private implicit val adToTxExtraction: AdToTxExtractor = new AdToTxExtractor()
+  private implicit val bkToTxExtraction: BkToTxExtractor = new BkToTxExtractor()
 
   // Workers
   private val workerTxToAd: ActorRef = context.actorOf(Props(new Worker[Transaction, TxToAdExtraction]()),
     "workerTxToAd")
   private val workerAdToTx: ActorRef = context.actorOf(Props(new Worker[Address, AdToTxExtraction]()),
     "workerAdToTx")
+  private val workerBcToTx: ActorRef = context.actorOf(Props(new Worker[Block, BkToTxExtraction]()),
+    "workerBkToTx")
 
   private implicit val timeout: Timeout = Timeout(5 seconds)
   private implicit val ec: ExecutionContext = context.dispatcher
 
+  // The pool of explorable transaction hashes
+  private val txsPool: mutable.Set[String] = new mutable.HashSet[String]()
   // The nodes of the graph: address -> (node id, balance)
   private val nodes: mutable.Map[String, (Long, Option[Long])] = new mutable.HashMap[String, (Long, Option[Long])]()
   // The nodes of the graph: hash -> (sender node id, receiver node id, total)
@@ -36,11 +41,26 @@ class MasterGraph(txsPool: mutable.Set[String], maxIterations: Int) extends Acto
 
   private val TxToAdBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/txs/"
   private val AdToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/addrs/"
+  private val BkToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/blocks/"
   private val TxRefLimit: Int = 5
   private val MaxMultipleRequests: Int = 3
   private val MaxTotalRequests: Int = 200
 
   override def receive: Receive = {
+    case Start(iterations, requests) =>
+      (workerBcToTx ? Request(BkToTxBaseUrl + blockNumber, single = true)).
+        mapTo[List[BkToTxExtraction]].
+        onComplete(block => {
+          block match {
+            case Success(bc) =>
+              txsPool ++= bc.flatMap(_.txids).take(5)
+            case Failure(bc) =>
+              log.info(s"Start: Parsing completed with errors $bc")
+          }
+          timers.startSingleTimer(TickKey,
+            ExtractAddresses(iterations, requests + 1),
+            1.second)
+        })
     case ExtractAddresses(this.maxIterations, requests) =>
       self ! End(maxIterations, requests)
     case ExtractAddresses(iterations, this.MaxTotalRequests) =>
@@ -136,6 +156,7 @@ object MasterGraph {
   case class ExtractAddresses(iterations: Int, requests: Int)
   case class ExtractTransactions(iterations: Int, requests: Int, newAddresses: mutable.Set[String]) extends State
   case class End(iterations: Int, requests: Int) extends State
+  case class Start(iterations: Int, requests: Int) extends State
 
   private case object TickKey
 }

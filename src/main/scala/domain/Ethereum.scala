@@ -38,15 +38,16 @@ object Address extends DefaultJsonProtocol with SprayJsonSupport {
  * Optional fields:
  * - next_txids: Option[String]
  * - next_internal_txids: Option[String]
+ *
+ * Seems optional:
+ * - uncles: List[String],
  */
-final case class Block(internal_txids: List[String],
-                       n_tx: Int,
+final case class Block(n_tx: Int,
                        txids: List[String],
                        hash: String,
                        height: Long,
                        prev_block: String,
                        prev_block_url: String,
-                       uncles: List[String],
                        chain: String,
                        depth: Long,
                        total: Long,
@@ -62,7 +63,7 @@ final case class Block(internal_txids: List[String],
                        mrkl_root: String) extends Ethereum
 
 object Block extends DefaultJsonProtocol with SprayJsonSupport {
-  implicit val blockFormat: RootJsonFormat[Block] = jsonFormat21(Block.apply)
+  implicit val blockFormat: RootJsonFormat[Block] = jsonFormat19(Block.apply)
 }
 
 /**
@@ -141,13 +142,14 @@ object TransactionInputs extends DefaultJsonProtocol with SprayJsonSupport {
 /**
  * A record used to model the outputs JSON object used inside the Transaction object
  *
+ * Seems optional:
+ * - script: String
  */
 final case class TransactionOutputs(value: Long,
-                                    script: Option[String],
                                     addresses: List[String]) extends Ethereum
 
 object TransactionOutputs extends DefaultJsonProtocol with SprayJsonSupport {
-  implicit val transactionOutputsFormat: RootJsonFormat[TransactionOutputs] = jsonFormat3(TransactionOutputs.apply)
+  implicit val transactionOutputsFormat: RootJsonFormat[TransactionOutputs] = jsonFormat2(TransactionOutputs.apply)
 }
 
 /**
