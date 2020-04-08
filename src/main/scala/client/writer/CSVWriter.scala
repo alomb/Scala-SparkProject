@@ -3,6 +3,7 @@ package client.writer
 import java.io.{BufferedWriter, File, FileWriter}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import CSVWriter._
 
 /**
  *
@@ -13,17 +14,17 @@ import java.time.format.DateTimeFormatter
  */
 class CSVWriter[F <: FileFormat](path: String, header: Option[Seq[String]] = None, sep: Char = ',') {
 
-  private val defaultName: String = LocalDateTime.now.format(DateTimeFormatter.ofPattern("YYYYMMdd_HHmmss"))
+  private val defaultName: String = LocalDateTime.now.format(DateTimeFormatter.ofPattern(PathFormat))
   private val file: File = new File(path + defaultName + ".csv")
   private val outputFile: BufferedWriter = new BufferedWriter(new FileWriter(file))
-  outputFile.append(header.getOrElse(List()).mkString(","))
+  outputFile.append(header.getOrElse(List()).mkString(",") + {if (header.isDefined) "\n"})
 
   /**
    * Append a sequence of data rows in the file
    * @param row sequence of rows containing data
    */
   def appendBlock(row: Seq[F]): Unit = {
-    outputFile.append("\n" + row.map(_.extract().mkString(sep.toString)).mkString("\n"))
+    outputFile.append(row.map(_.extract().mkString(sep.toString)).mkString("\n") + "\n")
   }
 
   /**
@@ -37,4 +38,6 @@ class CSVWriter[F <: FileFormat](path: String, header: Option[Seq[String]] = Non
 object CSVWriter {
   val NodesPath: String = "resources/client/nodes/"
   val EdgesPath: String = "resources/client/edges/"
+
+  private val PathFormat = "YYYYMMdd_HHmmss"
 }
