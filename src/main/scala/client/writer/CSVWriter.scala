@@ -4,18 +4,15 @@ import java.io.{BufferedWriter, File, FileWriter}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class CSVWriter(path: String, sep: Char = ',', nameTail: Option[String] = None) {
+class CSVWriter[F <: FileFormat](path: String, header: Seq[String], sep: Char = ',') {
 
   private val defaultName: String = LocalDateTime.now.format(DateTimeFormatter.ofPattern("YYYYMMdd_HHmmss"))
-  private val file: File = new File(path + defaultName + nameTail.getOrElse("") + ".csv")
+  private val file: File = new File(path + defaultName + ".csv")
   private val outputFile: BufferedWriter = new BufferedWriter(new FileWriter(file))
+  outputFile.append(header.mkString(","))
 
-  def writeBlock(row: Seq[Seq[String]]): Unit = {
-    outputFile.write(row.map(_.mkString(sep.toString)).mkString("\n"))
-  }
-
-  def writeLine(row: Seq[String]): Unit = {
-    outputFile.write(row.mkString(sep.toString))
+  def appendBlock(row: Seq[F]): Unit = {
+    outputFile.append("\n" + row.map(_.extract().mkString(sep.toString)).mkString("\n"))
   }
 
   def close(): Unit = {

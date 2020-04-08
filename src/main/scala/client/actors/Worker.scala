@@ -8,20 +8,28 @@ import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import client.actors.Worker.Request
 import client.extractors.{Extraction, Extractor}
-import domain.Ethereum
+import domain.Domain
 
 import scala.concurrent.Future
 
 /**
- * An actor responsible for getting and parsing HTTP requests.
+ * An actor responsible for getting, parsing and extracting information from HTTP requests.
  *
  * 1) The request is supported by the Request-Level Client-Side of akka-http module. The result of a request is piped to
  * the actor itself and then parsed.
  * 2) The parse (unmarshalling) of the JSON object is provided by the akka-http-spray-json module.
+ * 3) The extraction is based on the provided Extractor
+ *
+ * @tparam D the specific domain object to be parsed
+ * @tparam E the requested extraction
+ *
+ * @param ex the Extractor
+ * @param sum the Unmarshaller for a single element of the domain
+ * @param mum the Unmarshaller for multiple elements of the domain
  */
-class Worker[T <: Ethereum, U <: Extraction](implicit val ex: Extractor[T, U],
-                                             implicit val sum: Unmarshaller[ResponseEntity, T],
-                                             implicit val mum: Unmarshaller[ResponseEntity, List[T]]) extends Actor with ActorLogging {
+class Worker[D <: Domain, E <: Extraction](implicit val ex: Extractor[D, E],
+                                           implicit val sum: Unmarshaller[ResponseEntity, D],
+                                           implicit val mum: Unmarshaller[ResponseEntity, List[D]]) extends Actor with ActorLogging {
 
   import context.dispatcher
 
@@ -33,22 +41,21 @@ class Worker[T <: Ethereum, U <: Extraction](implicit val ex: Extractor[T, U],
   }
 
   override def receive: Receive = {
-
     case Request(url, single) =>
       // Requesting Future[HttpResponse]
       http.singleRequest(HttpRequest(uri = url)).flatMap {
         case HttpResponse(StatusCodes.OK, _, entity, _) =>
           // Parsing (Future[List[T]])
-          if (single) Unmarshal(entity).to[T](sum, dispatcher, materializer).map(List(_))
-          else Unmarshal(entity).to[List[T]](mum, dispatcher, materializer)
+          if (single) Unmarshal(entity).to[D](sum, mat = materializer).map(List(_))
+          else Unmarshal(entity).to[List[D]](mum, mat = materializer)
         case resp @ HttpResponse(code, _, _, _) =>
           log.info("Request failed, response code: " + code)
           resp.discardEntityBytes()
           Future{
-            List[T]()
+            List[D]()
           }
       }.flatMap(obj => {
-        // Extracting fields (Future[List[U]])
+        // Extracting fields (Future[List[E]])
         Future {ex.extract(obj)}
       }).pipeTo(sender)
 

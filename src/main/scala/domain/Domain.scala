@@ -3,15 +3,15 @@ package domain
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
-sealed trait Ethereum
+sealed trait Domain
 
 /**
  * A record used to model the Block JSON object
  *
  * Optional fields:
  * - tx_url: Option[String]
- * - txrefs: Option[List[TransactionRef]]
- * - unconfirmed_txrefs: Option[List[TransactionRef]]
+ * - txrefs: Option[ List[TransactionRef] ]
+ * - unconfirmed_txrefs: Option[ List[TransactionRef] ]
  * - hasMore: Option[Boolean]
  */
 final case class Address(address: String,
@@ -26,7 +26,7 @@ final case class Address(address: String,
                          tx_url: Option[String],
                          txrefs: Option[List[TransactionRef]],
                          unconfirmed_txrefs: Option[List[TransactionRef]],
-                         hasMore: Option[Boolean]) extends Ethereum
+                         hasMore: Option[Boolean]) extends Domain
 
 object Address extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val addressFormat: RootJsonFormat[Address] = jsonFormat13(Address.apply)
@@ -60,7 +60,7 @@ final case class Block(n_tx: Int,
                        relayed_by: String,
                        nonce: Long,
                        tx_url: String,
-                       mrkl_root: String) extends Ethereum
+                       mrkl_root: String) extends Domain
 
 object Block extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val blockFormat: RootJsonFormat[Block] = jsonFormat19(Block.apply)
@@ -84,7 +84,7 @@ final case class Blockchain(name: String,
                             unconfirmed_count: Long,
                             high_gas_price: Long,
                             medium_gas_price: Long,
-                            low_gas_price: Long) extends Ethereum
+                            low_gas_price: Long) extends Domain
 
 object Blockchain extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val blockchainFormat: RootJsonFormat[Blockchain] = jsonFormat12(Blockchain.apply)
@@ -94,7 +94,7 @@ object Blockchain extends DefaultJsonProtocol with SprayJsonSupport {
  * A record used to model the Transaction JSON object
  *
  * JSON Optional fields:
- * - internal_txids: Option[List[String]]
+ * - internal_txids: Option[ List[String] ]
  * - confirmed: Option[String]
  * - gas_limit: Option[Long]
  * - contract_creation: Option[Boolean]
@@ -122,7 +122,7 @@ final case class Transaction(block_height: Long,
                              vout_sz: Int,
                              confirmations: Long,
                              inputs: List[TransactionInputs],
-                             outputs: List[TransactionOutputs]) extends Ethereum
+                             outputs: List[TransactionOutputs]) extends Domain
 
 object Transaction extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val transactionFormat: RootJsonFormat[Transaction] = rootFormat(lazyFormat(jsonFormat16(Transaction.apply)))
@@ -133,7 +133,7 @@ object Transaction extends DefaultJsonProtocol with SprayJsonSupport {
  *
  */
 final case class TransactionInputs(sequence: Long,
-                                   addresses: List[String]) extends Ethereum
+                                   addresses: List[String]) extends Domain
 
 object TransactionInputs extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val transactionInputsFormat: RootJsonFormat[TransactionInputs] = jsonFormat2(TransactionInputs.apply)
@@ -146,7 +146,7 @@ object TransactionInputs extends DefaultJsonProtocol with SprayJsonSupport {
  * - script: String
  */
 final case class TransactionOutputs(value: Long,
-                                    addresses: List[String]) extends Ethereum
+                                    addresses: List[String]) extends Domain
 
 object TransactionOutputs extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val transactionOutputsFormat: RootJsonFormat[TransactionOutputs] = jsonFormat2(TransactionOutputs.apply)
@@ -169,7 +169,7 @@ final case class TransactionRef(tx_hash: String,
                                 confirmations: Long,
                                 ref_balance: Option[Long],
                                 confirmed: Option[String],
-                                double_of: Option[String]) extends Ethereum
+                                double_of: Option[String]) extends Domain
 
 object TransactionRef extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val transactionRefFormat: RootJsonFormat[TransactionRef] = jsonFormat9(TransactionRef.apply)

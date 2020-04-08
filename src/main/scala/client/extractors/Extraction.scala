@@ -3,6 +3,7 @@ package client.extractors
 import domain.{TransactionInputs, TransactionOutputs, TransactionRef}
 
 sealed trait Extraction
+
 case class BkToTxExtraction(txids: List[String]) extends Extraction
 
 case class TxToAdExtraction(hash: String,
@@ -11,5 +12,4 @@ case class TxToAdExtraction(hash: String,
                             total: Long) extends Extraction
 
 case class AdToTxExtraction(address: String,
-                            txrefs: Option[List[TransactionRef]],
-                            balance: Long) extends Extraction
+                            txrefs: Option[List[TransactionRef]]) extends Extraction
