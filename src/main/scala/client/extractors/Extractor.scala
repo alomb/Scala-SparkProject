@@ -5,8 +5,8 @@ import domain.Domain
 /**
  * The common interface of an extractor
  *
- * @tparam D specific domain type of the extracted data
- * @tparam E resulting extraction
+ * @tparam D specific domain type of the extracted data, subtype of [[Domain]]
+ * @tparam E resulting extraction, subtype of [[Extraction]]
  */
 trait Extractor[D <: Domain, E <: Extraction] {
   /**

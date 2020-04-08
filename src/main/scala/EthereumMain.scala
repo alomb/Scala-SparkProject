@@ -3,6 +3,7 @@ import java.io.File
 import graph.GraphUtils
 import org.apache.spark.graphx.Graph
 import org.apache.spark.sql.SparkSession
+import client.writer.CSVWriter._
 
 object EthereumMain {
   def getListOfFiles(dir: String):List[File] = {
@@ -23,13 +24,11 @@ object EthereumMain {
       .getOrCreate()
 
     val edges: GraphUtils = new GraphUtils(spark)
-    val graph: Graph[String, Long] = edges.createGraphFromObs("resources/graph/edges",
-      getListOfFiles("resources/client/nodes").map(_.getAbsolutePath),
-      getListOfFiles("resources/client/edges").map(_.getAbsolutePath))
+    val graph: Graph[String, Long] = edges.createGraphFromObs(getListOfFiles(NodesPath).map(_.getAbsolutePath),
+      getListOfFiles(EdgesPath).map(_.getAbsolutePath))
 
     graph.vertices.foreach(println(_))
     graph.edges.foreach(println(_))
-
 
     println("Program ends")
   }

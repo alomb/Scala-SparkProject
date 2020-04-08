@@ -20,12 +20,12 @@ import scala.concurrent.Future
  * 2) The parse (unmarshalling) of the JSON object is provided by the akka-http-spray-json module.
  * 3) The extraction is based on the provided Extractor
  *
- * @tparam D the specific domain object to be parsed
- * @tparam E the requested extraction
+ * @tparam D the specific domain object to be parsed, subtype of [[Domain]]
+ * @tparam E the requested extraction, dubtype of [[Extraction]]
  *
- * @param ex the Extractor
- * @param sum the Unmarshaller for a single element of the domain
- * @param mum the Unmarshaller for multiple elements of the domain
+ * @param ex the [[Extractor]] used during the extraction phase
+ * @param sum the [[Unmarshaller]] used to parse a single element of the domain
+ * @param mum the [[Unmarshaller]] used to parse multiple elements of the domain
  */
 class Worker[D <: Domain, E <: Extraction](implicit val ex: Extractor[D, E],
                                            implicit val sum: Unmarshaller[ResponseEntity, D],
@@ -65,5 +65,9 @@ class Worker[D <: Domain, E <: Extraction](implicit val ex: Extractor[D, E],
 }
 
 object Worker {
+  /**
+   * @param url The url used to create a GET request
+   * @param single If true the parse is on a single rows, a sequence otherwise
+   */
   case class Request(url: String, single: Boolean = false)
 }

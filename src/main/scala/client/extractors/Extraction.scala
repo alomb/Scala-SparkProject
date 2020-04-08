@@ -2,6 +2,11 @@ package client.extractors
 
 import domain.{TransactionInputs, TransactionOutputs, TransactionRef}
 
+/**
+ * It collects the names and types of some desired fields.
+ * Used for example as a final result of a request-parse-extract process, like the one
+ * conducted by the class [[client.actors.Worker]]
+ */
 sealed trait Extraction
 
 case class BkToTxExtraction(txids: List[String]) extends Extraction

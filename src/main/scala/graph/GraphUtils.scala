@@ -9,8 +9,9 @@ class GraphUtils(spark: SparkSession) {
   private val sparkContext = spark.sparkContext
   sparkContext.setLogLevel("ERROR")
 
-  def createGraphFromObs(path: String, filesNode: Seq[String], filesEdge: Seq[String]): Graph[String, Long] = {
+  def createGraphFromObs(filesNode: Seq[String], filesEdge: Seq[String]): Graph[String, Long] = {
     // TODO Check presence of files
+
     val mapNodesIndex: collection.Map[String, VertexId] = spark.read
       .format("csv")
       .option("inferSchema", "true")
@@ -18,7 +19,7 @@ class GraphUtils(spark: SparkSession) {
       .load(filesNode:_*)
       .as[String]
       .rdd
-      .distinct
+      .mapPartitions(x => x.toList.distinct.toIterator)
       .zipWithIndex()
       .collectAsMap()
 
@@ -29,7 +30,7 @@ class GraphUtils(spark: SparkSession) {
       .load(filesEdge:_*)
       .as[(String, String, String, Long)]
       .rdd
-      .distinct
+      .mapPartitions(x => x.toList.distinct.toIterator)
       .map{case (_, in, out, v) => Edge(mapNodesIndex(in), mapNodesIndex(out), v)}
 
     val nodes: RDD[(VertexId, String)] = sparkContext.parallelize(mapNodesIndex.map(v => (v._2, v._1)).toSeq)

@@ -1,6 +1,12 @@
 package client.writer
 
+/**
+ * It expresses the format of data file row
+ */
 sealed trait FileFormat {
+  /**
+   * @return the row as a sequence of strings
+   */
   def extract(): Seq[String]
 }
 

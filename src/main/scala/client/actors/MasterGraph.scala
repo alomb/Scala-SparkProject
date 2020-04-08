@@ -15,6 +15,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 import MasterGraph._
+import CSVWriter._
 
 class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with ActorLogging with Timers {
   private implicit val timeout: Timeout = Timeout(5 seconds)
@@ -132,10 +133,10 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
       edges.foreach(e => log.info(e toString))
       context.system.terminate()
 
-      val verticesWriter = new CSVWriter[VerticeFileFormat](NodesPath, List("address"))
+      val verticesWriter = new CSVWriter[VerticeFileFormat](NodesPath, Some(VerticesFileHeader))
       verticesWriter.appendBlock(nodes.map(VerticeFileFormat).toSeq)
       verticesWriter.close()
-      val edgesWriter = new CSVWriter[EdgeFileFormat](EdgesPath, List("hash", "in", "out", "value"))
+      val edgesWriter = new CSVWriter[EdgeFileFormat](EdgesPath, Some(EdgesFileHeader))
       edgesWriter.appendBlock(edges.map{case (k, v) => EdgeFileFormat(k, v._1, v._2, v._3)}.toSeq)
       edgesWriter.close()
     case cmd =>
@@ -144,15 +145,18 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
 }
 
 object MasterGraph {
+  // Constant values
   private val TxToAdBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/txs/"
   private val AdToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/addrs/"
   private val BkToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/blocks/"
   private val TxRefLimit: Int = 5
   private val MaxMultipleRequests: Int = 3
   private val MaxTotalRequests: Int = 200
-  private val NodesPath: String = "resources/client/nodes/"
-  private val EdgesPath: String = "resources/client/edges/"
 
+  private val VerticesFileHeader = List("address")
+  private val EdgesFileHeader = List("hash", "in", "out", "value")
+
+  // States and messages received by this actor
   sealed trait StateT
   abstract class State() extends StateT{
     def iterations: Int
@@ -163,5 +167,6 @@ object MasterGraph {
   case class End(iterations: Int, requests: Int) extends State
   case class Start(iterations: Int, requests: Int) extends State
 
+  // Object used as a key identifier of the timer
   private case object TickKey
 }
