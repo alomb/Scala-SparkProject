@@ -1,10 +1,11 @@
-package client
+package client.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Timers}
 import akka.pattern.ask
 import akka.util.Timeout
-import client.Worker.Request
+import client.actors.Worker.Request
 import client.extractors._
+import client.writer.CSVWriter
 import domain.{Address, Block, Transaction}
 
 import scala.collection.mutable
@@ -35,9 +36,9 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
   // The pool of explorable transaction hashes
   private val txsPool: mutable.Set[String] = new mutable.HashSet[String]()
   // The nodes of the graph: address -> (node id, balance)
-  private val nodes: mutable.Map[String, (Long, Option[Long])] = new mutable.HashMap[String, (Long, Option[Long])]()
+  private val nodes: mutable.Set[String] = new mutable.HashSet[String]()
   // The nodes of the graph: hash -> (sender node id, receiver node id, total)
-  private val edges: mutable.Map[String, (Long, Long, Long)] = new mutable.HashMap[String, (Long, Long, Long)]()
+  private val edges: mutable.Map[String, (String, String)] = new mutable.HashMap[String, (String, String)]()
 
   private val TxToAdBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/txs/"
   private val AdToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/addrs/"
@@ -53,7 +54,7 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
         onComplete(block => {
           block match {
             case Success(bc) =>
-              txsPool ++= bc.flatMap(_.txids).take(5)
+              txsPool ++= bc.flatMap(_.txids).take(10)
             case Failure(bc) =>
               log.info(s"Start: Parsing completed with errors $bc")
           }
@@ -86,16 +87,11 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
               case Success(txs) =>
                 txs.foreach(el => {
                   // Add new nodes
-                  List(el.in.map(_.addresses.head).head, el.out.map(_.addresses.head).head).
-                    filter(!nodes.contains(_)).
-                    foreach(a => {
-                      newAds += a
-                      nodes(a) = (nodes.keySet.size + 1, None)
-                    })
+                  nodes ++= List(el.in.map(_.addresses.head).head, el.out.map(_.addresses.head).head)
+                  newAds ++= List(el.in.map(_.addresses.head).head, el.out.map(_.addresses.head).head)
                   // Add edge
-                  edges(el.hash) = (nodes(el.in.map(_.addresses.head).head)_1,
-                    nodes(el.out.map(_.addresses.head).head)_1,
-                    el.total)
+                  edges(el.hash) = (el.in.map(_.addresses.head).head,
+                    el.out.map(_.addresses.head).head)
                 })
               case Failure(txs) =>
                 log.info(s"ExtractAddresses: Parsing completed with errors $txs")
@@ -125,8 +121,6 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
                 ads.foreach(el => {
                   // Update pool of transactions
                   txsPool ++= el.txrefs.getOrElse(List()).map(_.tx_hash).toSet
-                  // Update new nodes
-                  nodes(el.address) = (nodes(el.address)._1, Some(el.balance))
                 })
               case Failure(ads) =>
                 log.info(s"ExtractTransactions: Parsing completed with errors $ads")
@@ -138,10 +132,17 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
       }
     case End(_, _) =>
       log.info("Nodes: ")
-      nodes.foreach(n => log.info(n.toString()))
+      nodes.foreach(n => log.info(n toString))
       log.info("Edges: ")
-      edges.foreach(e => log.info(e.toString()))
+      edges.foreach(e => log.info(e toString))
       context.system.terminate()
+
+      val nodesWriter = new CSVWriter("resources/", nameTail = Some("n"))
+      nodesWriter.writeBlock(nodes.map(Seq(_)).toSeq)
+      nodesWriter.close()
+      val edgesWriter = new CSVWriter("resources/", nameTail = Some("e"))
+      edgesWriter.writeBlock(edges.map{case (k, v) => Seq(k, v._1, v._2)}.toSeq)
+      edgesWriter.close()
     case cmd =>
       log.info("Unknown command " + cmd)
   }

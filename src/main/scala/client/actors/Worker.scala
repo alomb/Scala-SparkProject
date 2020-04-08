@@ -1,4 +1,4 @@
-package client
+package client.actors
 
 import akka.actor.{Actor, ActorLogging}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, ResponseEntity, StatusCodes}
@@ -6,7 +6,7 @@ import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
-import client.Worker.Request
+import client.actors.Worker.Request
 import client.extractors.{Extraction, Extractor}
 import domain.Ethereum
 
