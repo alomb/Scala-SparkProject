@@ -133,10 +133,10 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
       edges.foreach(e => log.info(e toString))
       context.system.terminate()
 
-      val verticesWriter = new CSVWriter[VerticeFileFormat](NodesPath, Some(VerticesFileHeader))
+      val verticesWriter = new CSVWriter[VerticeFileFormat](NodesPath, header = Some(VerticesFileHeader))
       verticesWriter.appendBlock(nodes.map(VerticeFileFormat).toSeq)
       verticesWriter.close()
-      val edgesWriter = new CSVWriter[EdgeFileFormat](EdgesPath, Some(EdgesFileHeader))
+      val edgesWriter = new CSVWriter[EdgeFileFormat](EdgesPath, header = Some(EdgesFileHeader))
       edgesWriter.appendBlock(edges.map{case (k, v) => EdgeFileFormat(k, v._1, v._2, v._3)}.toSeq)
       edgesWriter.close()
     case cmd =>
@@ -151,7 +151,7 @@ object MasterGraph {
   private val BkToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/blocks/"
   private val TxRefLimit: Int = 5
   private val MaxMultipleRequests: Int = 3
-  private val MaxTotalRequests: Int = 200
+  private val MaxTotalRequests: Int = 150
 
   private val VerticesFileHeader = List("address")
   private val EdgesFileHeader = List("hash", "in", "out", "value")

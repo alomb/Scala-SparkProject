@@ -1,17 +1,16 @@
-import java.io.File
+import java.nio.file.Path
 
+import client.writer.CSVWriter._
 import graph.GraphUtils
 import org.apache.spark.graphx.Graph
 import org.apache.spark.sql.SparkSession
-import client.writer.CSVWriter._
 
 object EthereumMain {
-  def getListOfFiles(dir: String):List[File] = {
-    val d = new File(dir)
-    if (d.exists && d.isDirectory) {
-      d.listFiles.filter(_.isFile).toList
+  def getListOfFiles(dir: Path): List[Path] = {
+    if (dir.toFile.exists && dir.toFile.isDirectory) {
+      dir.toFile.listFiles.filter(_.isFile).toList.map(_.toPath)
     } else {
-      List[File]()
+      List[Path]()
     }
   }
 
@@ -24,8 +23,8 @@ object EthereumMain {
       .getOrCreate()
 
     val edges: GraphUtils = new GraphUtils(spark)
-    val graph: Graph[String, Long] = edges.createGraphFromObs(getListOfFiles(NodesPath).map(_.getAbsolutePath),
-      getListOfFiles(EdgesPath).map(_.getAbsolutePath))
+    val graph: Graph[String, Long] = edges.createGraphFromObs(getListOfFiles(NodesPath).map(_.toString),
+      getListOfFiles(EdgesPath).map(_.toString))
 
     graph.vertices.foreach(println(_))
     graph.edges.foreach(println(_))
