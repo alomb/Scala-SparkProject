@@ -22,12 +22,13 @@ object EthereumMain {
       .appName("Test")
       .getOrCreate()
 
-    val edges: GraphUtils = new GraphUtils(spark)
-    val graph: Graph[String, Long] = edges.createGraphFromObs(getListOfFiles(NodesPath).map(_.toString),
+    val graphUtils: GraphUtils = new GraphUtils(spark)
+    val graph: Graph[String, Long] = graphUtils.createGraphFromObs(getListOfFiles(NodesPath).map(_.toString),
       getListOfFiles(EdgesPath).map(_.toString))
 
-    graph.vertices.foreach(println(_))
-    graph.edges.foreach(println(_))
+    graph.triplets.foreach(println(_))
+
+    graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
 
     println("Program ends")
   }

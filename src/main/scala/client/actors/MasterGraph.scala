@@ -151,7 +151,7 @@ object MasterGraph {
   private val BkToTxBaseUrl: String = "https://api.blockcypher.com/v1/eth/main/blocks/"
   private val TxRefLimit: Int = 5
   private val MaxMultipleRequests: Int = 3
-  private val MaxTotalRequests: Int = 150
+  private val MaxTotalRequests: Int = 120
 
   private val VerticesFileHeader = List("address")
   private val EdgesFileHeader = List("hash", "in", "out", "value")
