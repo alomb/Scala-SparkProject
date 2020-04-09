@@ -71,7 +71,7 @@ class GraphUtils(spark: SparkSession) {
    */
   def saveAsGEXF[V, E](path: String, graph: Graph[V, E]): Unit = {
     val date: String = LocalDateTime.now.format(DateTimeFormatter.ofPattern("YYYY-MM-dd"))
-    val description: String = s"A graph containing some Ethereum transactions"
+    val description: String = "A graph containing some Ethereum transactions"
     val separator: String = "\n\t\t"
     val vertices: String = graph.vertices
       .map(v => s"""<node id=\"${v._1}\" label=\"${v._2}\" />""")
@@ -85,7 +85,7 @@ class GraphUtils(spark: SparkSession) {
     val gexf: String = s"""<?xml version="1.0" encoding="UTF-8"?>
                           |<gexf xmlns="http://www.gexf.net/1.2draft" version="1.3">
                           |  <meta lastmodifieddate="$date">
-                          |    <creator>"Alessandro Lombardi"</creator>
+                          |    <creator>Alessandro Lombardi</creator>
                           |    <description>$description</description>
                           |  </meta>
                           |  <graph mode="static" defaultedgetype="directed">

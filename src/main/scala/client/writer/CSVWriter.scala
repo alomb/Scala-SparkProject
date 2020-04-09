@@ -31,7 +31,7 @@ class CSVWriter[F <: FileFormat](directory: Path,
    * @param row sequence of rows containing data
    */
   def appendBlock(row: Seq[F]): Unit = {
-    outputFile.append(row.map(_.extract().mkString(sep.toString)).mkString("\n") + "\n")
+    outputFile.append(row.map(_.productIterator.map(_.toString).mkString(sep.toString)).mkString("\n") + "\n")
   }
 
   /**
