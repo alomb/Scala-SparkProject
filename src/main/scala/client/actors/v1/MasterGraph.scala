@@ -1,11 +1,14 @@
-package client.actors
+package client.actors.v1
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Timers}
 import akka.pattern.ask
 import akka.util.Timeout
-import client.actors.MasterGraph.{End, ExtractAddresses, ExtractTransactions, Start, TickKey}
+import client.actors.Worker
 import client.actors.Worker.Request
-import client.extractors.{AdToTxExtraction, AdToTxExtractor, BkToTxExtraction, BkToTxExtractor, TxToAdExtraction, TxToAdExtractor}
+import client.actors.v1.MasterGraph._
+import client.extractors.{AdToTxExtraction, BkToTxExtraction, TxToAdExtraction}
+import client.extractors.v1.{AdToTxExtractor, BkToTxExtractor, TxToAdExtractor}
+import client.writer.CSVWriter._
 import client.writer.{CSVWriter, EdgeFileFormat, VerticeFileFormat}
 import domain.{Address, Block, Transaction}
 
@@ -14,8 +17,6 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
-import MasterGraph._
-import CSVWriter._
 
 class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with ActorLogging with Timers {
   private implicit val timeout: Timeout = Timeout(5 seconds)
@@ -127,6 +128,7 @@ class MasterGraph(blockNumber: Int, maxIterations: Int) extends Actor with Actor
           }
       }
     case End(_, _) =>
+      timers.cancel(TickKey)
       log.info("Nodes: ")
       nodes.foreach(n => log.info(n toString))
       log.info("Edges: ")

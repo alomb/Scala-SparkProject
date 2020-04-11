@@ -1,5 +1,6 @@
-package client.extractors
+package client.extractors.v1
 
+import client.extractors.{Extractor, TxToAdExtraction}
 import domain.Transaction
 
 /**

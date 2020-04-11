@@ -18,3 +18,6 @@ case class TxToAdExtraction(hash: String,
 
 case class AdToTxExtraction(address: String,
                             txrefs: Option[List[TransactionRef]]) extends Extraction
+
+
+case class BkToTxExtraction2(hash: String, from: String, to: String, value: Long) extends Extraction

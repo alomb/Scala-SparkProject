@@ -3,7 +3,7 @@ package domain
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
-sealed trait Domain
+trait Domain
 
 /**
  * A record used to model the Block JSON object
@@ -173,4 +173,31 @@ final case class TransactionRef(tx_hash: String,
 
 object TransactionRef extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val transactionRefFormat: RootJsonFormat[TransactionRef] = jsonFormat9(TransactionRef.apply)
+}
+
+final case class Transaction2(hash: String,
+                              from: String,
+                              to: String,
+                              value: String) extends Domain
+
+object Transaction2 extends DefaultJsonProtocol with SprayJsonSupport {
+  implicit val transaction2Format: RootJsonFormat[Transaction2] = jsonFormat4(Transaction2.apply)
+}
+
+final case class TransactionContainer(result: Transaction2) extends Domain
+
+object TransactionContainer extends DefaultJsonProtocol with SprayJsonSupport {
+  implicit val transactionContainerFormat: RootJsonFormat[TransactionContainer] = jsonFormat1(TransactionContainer.apply)
+}
+
+final case class Block2(transactions: List[Transaction2]) extends Domain
+
+object Block2 extends DefaultJsonProtocol with SprayJsonSupport {
+  implicit val block2Format: RootJsonFormat[Block2] = jsonFormat1(Block2.apply)
+}
+
+final case class BlockContainer(result: Block2) extends Domain
+
+object BlockContainer extends DefaultJsonProtocol with SprayJsonSupport {
+  implicit val blockContainerFormat: RootJsonFormat[BlockContainer] = jsonFormat1(BlockContainer.apply)
 }

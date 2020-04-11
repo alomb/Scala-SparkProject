@@ -8,3 +8,5 @@ target
 out
 
 resources
+
+*.attach_pid*
