@@ -1,9 +1,8 @@
 import java.nio.file.Path
 
 import client.writer.CSVWriter._
-import graph.GraphUtils
+import graph.{ClusteringCoefficient, GraphUtils}
 import org.apache.spark.graphx.{Graph, VertexId}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 
 object EthereumMain {
@@ -20,7 +19,7 @@ object EthereumMain {
 
     val spark: SparkSession = SparkSession.builder()
       .master("local[*]")
-      .appName("Test")
+      .appName("Main")
       .getOrCreate()
 
     val graphUtils: GraphUtils = new GraphUtils(spark)
@@ -29,12 +28,25 @@ object EthereumMain {
 
     //graph.pageRank(0.0001).vertices.foreach(println(_))
 
+    /*
     val connectedComponentAddr: RDD[(VertexId, Iterable[String])] = graph
       .connectedComponents
       .vertices
       .join(graph.vertices)
       .map(_._2)
       .groupByKey()
+
+    connectedComponentAddr.collect().foreach(println(_))
+    */
+
+    //graph.triplets.collect.foreach(println(_))
+
+    val globalClustCoeff: Double = ClusteringCoefficient.globalClusteringCoefficient(graph)
+    val localClustCoeff: Array[(VertexId, Double)] = ClusteringCoefficient.localClusteringCoefficient(graph)
+
+    println(s"Global clustering coefficient: \n$globalClustCoeff")
+    println("Local clustering coefficient: \n")
+    localClustCoeff.foreach(println(_))
 
     graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
 
