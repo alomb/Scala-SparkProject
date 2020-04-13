@@ -2,7 +2,7 @@ import java.nio.file.Path
 
 import client.writer.CSVWriter._
 import graph.{ClusteringCoefficient, GraphUtils}
-import org.apache.spark.graphx.{Graph, VertexId}
+import org.apache.spark.graphx.Graph
 import org.apache.spark.sql.SparkSession
 
 object EthereumMain {
@@ -39,14 +39,14 @@ object EthereumMain {
     connectedComponentAddr.collect().foreach(println(_))
     */
 
-    //graph.triplets.collect.foreach(println(_))
+    graph.triplets.collect.foreach(println(_))
 
-    val globalClustCoeff: Double = ClusteringCoefficient.globalClusteringCoefficient(graph)
-    val localClustCoeff: Array[(VertexId, Double)] = ClusteringCoefficient.localClusteringCoefficient(graph)
 
-    println(s"Global clustering coefficient: \n$globalClustCoeff")
+    println(s"Global clustering coefficient: \n${ClusteringCoefficient.globalClusteringCoefficient(graph)}")
+    println(s"Transitivity: \n${ClusteringCoefficient.transitivity(graph)}")
+    println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageCLusterCoefficient(graph)}")
     println("Local clustering coefficient: \n")
-    localClustCoeff.foreach(println(_))
+    ClusteringCoefficient.localClusteringCoefficient(graph).foreach(println(_))
 
     graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
 

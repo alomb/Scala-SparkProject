@@ -10,6 +10,8 @@ import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 
+import scala.reflect.ClassTag
+
 /***
  * Collects some utility functions
  * @param spark The spark session used to parallelize in the cluster the below operations
@@ -69,7 +71,7 @@ class GraphUtils(spark: SparkSession) {
    * @param path the path of the created file
    * @param graph the graph to save.
    */
-  def saveAsGEXF[V, E](path: String, graph: Graph[V, E]): Unit = {
+  def saveAsGEXF[V: ClassTag, E: ClassTag](path: String, graph: Graph[V, E]): Unit = {
     val date: String = LocalDateTime.now.format(DateTimeFormatter.ofPattern("YYYY-MM-dd"))
     val description: String = "A graph containing some Ethereum transactions"
     val separator: String = "\n\t\t"
