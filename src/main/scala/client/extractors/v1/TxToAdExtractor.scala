@@ -1,7 +1,7 @@
 package client.extractors.v1
 
+import client.Transaction
 import client.extractors.{Extractor, TxToAdExtraction}
-import domain.Transaction
 
 /**
  * Extractor used to obtain the data related to a transaction

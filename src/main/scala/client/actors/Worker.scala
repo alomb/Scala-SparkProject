@@ -6,9 +6,9 @@ import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
+import client.Domain
 import client.actors.Worker.Request
 import client.extractors.{Extraction, Extractor}
-import domain.Domain
 
 import scala.concurrent.Future
 
@@ -18,7 +18,7 @@ import scala.concurrent.Future
  * 1) The request is supported by the Request-Level Client-Side of akka-http module. The result of a request is piped to
  * the actor itself and then parsed.
  * 2) The parse (unmarshalling) of the JSON object is provided by the akka-http-spray-json module.
- * 3) The extraction is based on the provided Extractor
+ * 3) The extraction is based on the provided Extractor.
  *
  * @tparam D the specific domain object to be parsed, subtype of [[Domain]]
  * @tparam E the requested extraction, dubtype of [[Extraction]]

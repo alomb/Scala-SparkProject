@@ -44,7 +44,7 @@ object EthereumMain {
 
     println(s"Global clustering coefficient: \n${ClusteringCoefficient.globalClusteringCoefficient(graph)}")
     println(s"Transitivity: \n${ClusteringCoefficient.transitivity(graph)}")
-    println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageCLusterCoefficient(graph)}")
+    println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageClusterCoefficient(graph)}")
     println("Local clustering coefficient: \n")
     ClusteringCoefficient.localClusteringCoefficient(graph).foreach(println(_))
 

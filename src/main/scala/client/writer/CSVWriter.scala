@@ -46,5 +46,8 @@ object CSVWriter {
   val NodesPath: Path = Paths.get("resources/client/nodes/")
   val EdgesPath: Path = Paths.get("resources/client/edges/")
 
+  val VerticesFileHeader = List("address")
+  val EdgesFileHeader = List("hash", "in", "out", "value")
+
   private val PathFormat = "YYYYMMdd_HHmmss"
 }

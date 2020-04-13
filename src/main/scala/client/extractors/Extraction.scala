@@ -1,6 +1,6 @@
 package client.extractors
 
-import domain.{TransactionInputs, TransactionOutputs, TransactionRef}
+import client.{TransactionInputs, TransactionOutputs, TransactionRef}
 
 /**
  * It collects the names and types of some desired fields.

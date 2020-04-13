@@ -1,7 +1,7 @@
 package client.extractors.v1
 
+import client.Block
 import client.extractors.{BkToTxExtraction, Extractor}
-import domain.Block
 
 /**
  * Extractor used to obtain the data related to a block

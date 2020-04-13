@@ -1,6 +1,6 @@
 package client.extractors
 
-import domain.Domain
+import client.Domain
 
 /**
  * The common interface of an extractor

@@ -1,7 +1,7 @@
 package client.extractors.v1
 
+import client.Address
 import client.extractors.{AdToTxExtraction, Extractor}
-import domain.Address
 
 /**
  * Extractor used to obtain the data related to an address
