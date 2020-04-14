@@ -1,7 +1,7 @@
 import java.nio.file.Path
 
 import client.writer.CSVWriter._
-import graph.{ClusteringCoefficient, GraphUtils}
+import graph.GraphUtils
 import org.apache.spark.graphx.Graph
 import org.apache.spark.sql.SparkSession
 
@@ -39,6 +39,7 @@ object EthereumMain {
     connectedComponentAddr.collect().foreach(println(_))
     */
 
+    /*
     graph.triplets.collect.foreach(println(_))
 
 
@@ -48,7 +49,10 @@ object EthereumMain {
     println("Local clustering coefficient: \n")
     ClusteringCoefficient.localClusteringCoefficient(graph).foreach(println(_))
 
-    graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
+    // graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
+    */
+    val greatestSubgraph: Graph[String, Long] = graphUtils.getSubgraphs(graph, 1)
+    graphUtils.saveAsGEXF("resources/graph/graph.gexf", greatestSubgraph)
 
     spark.stop()
 

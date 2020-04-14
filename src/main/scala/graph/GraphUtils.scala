@@ -66,6 +66,32 @@ class GraphUtils(spark: SparkSession) {
     Graph(nodes, edges)
   }
 
+  /**
+   * Returns a graph containing the greatest subgraphs (connected components)
+   * @param graph the original graph
+   * @param quantity the maximum number of subgraphs in the resulting graph
+   */
+  def getSubgraphs[V: ClassTag, E: ClassTag](graph: Graph[V, E], quantity: Int): Graph[V, E] = {
+    implicit val ordering: Ordering[(VertexId, Iterable[(VertexId, VertexId)])] =
+      new Ordering[(VertexId, Iterable[(VertexId, VertexId)])] {
+        override def compare(x: (VertexId, Iterable[(VertexId, VertexId)]),
+                             y: (VertexId, Iterable[(VertexId, VertexId)])): Int = {
+        y._2.size - x._2.size
+      }
+    }
+
+    val subgraphVertices: Set[VertexId] = graph.connectedComponents()
+      .vertices
+      .groupBy(_._2)
+      .takeOrdered(quantity)(ordering)
+      .map(_._2.toSet
+        .map((t: (VertexId, VertexId)) => t._1))
+      .reduce(_ ++ _)
+
+    graph.subgraph(t => subgraphVertices.contains(t.srcId) && subgraphVertices.contains(t.dstId),
+      (id, _) => subgraphVertices.contains(id))
+  }
+
   /***
    * Save the [[Graph]] as a gexf file to be visualized in Gephi
    * @param path the path of the created file

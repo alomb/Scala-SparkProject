@@ -50,7 +50,7 @@ object ClusteringCoefficient {
     */
 
     // Exclude edges from and to the same vertex
-    val newGraph: Graph[V, E] = Graph(graph.vertices, graph.edges.filter(e => e.dstId != e.srcId)).cache()
+    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache()
 
     // Associate to each vertex its directed neighbors without considering the direction of the edge
     val neighbors: VertexRDD[Set[VertexId]] = newGraph
@@ -93,7 +93,7 @@ object ClusteringCoefficient {
    */
   def globalClusteringCoefficient[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Double = {
     // Exclude edges from and to the same vertex
-    val newGraph: Graph[V, E] = Graph(graph.vertices, graph.edges.filter(e => e.dstId != e.srcId)).cache()
+    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache()
 
     val considerableVertices: Set[VertexId] = verticesWithDegreeGT1(newGraph)
 
@@ -125,7 +125,7 @@ object ClusteringCoefficient {
   def transitivity[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Double = {
 
     // Exclude edges from and to the same vertex
-    val newGraph: Graph[V, E] = Graph(graph.vertices, graph.edges.filter(e => e.dstId != e.srcId)).cache()
+    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache()
 
     // Vertices with degree greater or equal than two
     val considerableVertices: Set[VertexId] = verticesWithDegreeGT1(newGraph)

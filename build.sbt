@@ -5,8 +5,8 @@ lazy val root = (project in file("."))
     version := "0.1"
   )
 
-private val sparkVersion = "2.4.5"
-private val akkaVersion = "10.1.11"
+val sparkVersion = "2.4.5"
+val akkaVersion = "10.1.11"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion,
