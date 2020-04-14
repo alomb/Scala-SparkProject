@@ -50,6 +50,8 @@ object EthereumMain {
 
     graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
 
+    spark.stop()
+
     println("Program ends")
   }
 }
