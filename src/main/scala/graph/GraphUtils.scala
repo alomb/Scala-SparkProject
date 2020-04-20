@@ -68,25 +68,31 @@ class GraphUtils(spark: SparkSession) {
 
   /**
    * Returns a graph containing the greatest subgraphs (connected components)
+   * @tparam V the vertex attribute type
+   * @tparam E the edge attribute type
+   *
    * @param graph the original graph
    * @param quantity the maximum number of subgraphs in the resulting graph
    */
   def getSubgraphs[V: ClassTag, E: ClassTag](graph: Graph[V, E], quantity: Int): Graph[V, E] = {
-    implicit val ordering: Ordering[(VertexId, Iterable[(VertexId, VertexId)])] =
-      new Ordering[(VertexId, Iterable[(VertexId, VertexId)])] {
-        override def compare(x: (VertexId, Iterable[(VertexId, VertexId)]),
-                             y: (VertexId, Iterable[(VertexId, VertexId)])): Int = {
-        y._2.size - x._2.size
-      }
-    }
 
-    val subgraphVertices: Set[VertexId] = graph.connectedComponents()
-      .vertices
-      .groupBy(_._2)
-      .takeOrdered(quantity)(ordering)
-      .map(_._2.toSet
-        .map((t: (VertexId, VertexId)) => t._1))
-      .reduce(_ ++ _)
+    // Implicit ordering used to order the pairs (VertexId, Set[VertexId])
+    implicit val ordering: Ordering[(VertexId, Set[VertexId])] =
+      new Ordering[(VertexId, Set[VertexId])] {
+        override def compare(x: (VertexId, Set[VertexId]),
+                             y: (VertexId, Set[VertexId])): Int = {
+          x._2.size - y._2.size
+        }
+      }
+
+    // Compute the set of the selected vertices id
+    val subgraphVertices: Set[VertexId] = graph.connectedComponents
+        .vertices
+        .map(v => (v._2, Set(v._1)))
+        .reduceByKey((v1, v2) => v1 ++ v2)
+        .top(quantity)(ordering)
+        .map(v => v._2)
+        .reduce(_ ++ _)
 
     graph.subgraph(t => subgraphVertices.contains(t.srcId) && subgraphVertices.contains(t.dstId),
       (id, _) => subgraphVertices.contains(id))
@@ -94,6 +100,9 @@ class GraphUtils(spark: SparkSession) {
 
   /***
    * Save the [[Graph]] as a gexf file to be visualized in Gephi
+   * @tparam V the vertex attribute type
+   * @tparam E the edge attribute type
+   *
    * @param path the path of the created file
    * @param graph the graph to save.
    */

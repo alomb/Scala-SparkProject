@@ -14,6 +14,8 @@ object ClusteringCoefficient {
 
   /**
    * Compute the possible number of pairs using binomial coefficient
+   * @param n the number of elements
+   * @return the number of pairs
    */
   private def pairs(n: Int): Int = {
     @annotation.tailrec
@@ -27,6 +29,11 @@ object ClusteringCoefficient {
 
   /**
    * Return a set containing the vertices with degree strictly greater than one
+   * @tparam V the vertex attribute type
+   * @tparam E the edge attribute type
+   *
+   * @param graph the analyzed graph
+   * @return a set containing vertices with degree greater than one
    */
   private def verticesWithDegreeGT1[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Set[VertexId] = {
     graph.ops
@@ -40,6 +47,11 @@ object ClusteringCoefficient {
   /**
    * A clustering coefficient relative to each vertex of a *directed* graph
    * More details on [[https://en.wikipedia.org/wiki/Clustering_coefficient#Local_clustering_coefficient]]
+   * @tparam V the vertex attribute type
+   * @tparam E the edge attribute type
+   *
+   * @param graph the analyzed graph
+   * @return an array associating to each vertex its local cluster coefficient
    */
   def localClusteringCoefficient[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Array[(VertexId, Double)] = {
 
@@ -90,6 +102,11 @@ object ClusteringCoefficient {
   /**
    * Compute the global clustering coefficient.
    * More details on [[https://en.wikipedia.org/wiki/Triadic_closure#Clustering_coefficient]]
+   * @tparam V the vertex attribute type
+   * @tparam E the edge attribute type
+   *
+   * @param graph the analyzed graph
+   * @return the global cluster coefficient
    */
   def globalClusteringCoefficient[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Double = {
     // Exclude edges from and to the same vertex
@@ -121,6 +138,12 @@ object ClusteringCoefficient {
   /**
    * A measure similar to global clustering. It measures the presence of triadic closure.
    * More details on [[https://en.wikipedia.org/wiki/Triadic_closure#Transitivity]]
+   *
+   * @tparam V the vertex attribute type
+   * @tparam E the edge attribute type
+   *
+   * @param graph the analyzed graph
+   * @return the graph transitivity
    */
   def transitivity[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Double = {
 
@@ -150,6 +173,12 @@ object ClusteringCoefficient {
   /**
    * An alternative method to global clustering coefficient based on the average of the local clustering coefficient.
    * More details on [[https://en.wikipedia.org/wiki/Clustering_coefficient#Network_average_clustering_coefficient]]
+   *
+   * @tparam V the vertex attribute type
+   * @tparam E the edge attribute type
+   *
+   * @param graph the analyzed graph
+   * @return the graph average cluster coefficient
    */
   def averageClusterCoefficient[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Double = {
     val localClusterCoeff: Array[(VertexId, Double)] = localClusteringCoefficient(graph)

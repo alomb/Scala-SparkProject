@@ -1,11 +1,16 @@
 import java.nio.file.Path
 
 import client.writer.CSVWriter._
-import graph.GraphUtils
+import graph.{CommunityDetection, GraphUtils}
 import org.apache.spark.graphx.Graph
 import org.apache.spark.sql.SparkSession
 
 object EthereumMain {
+
+  /**
+   * @param dir the directory path
+   * @return a list of files contained in the directory
+   */
   def getListOfFiles(dir: Path): List[Path] = {
     if (dir.toFile.exists && dir.toFile.isDirectory) {
       dir.toFile.listFiles.filter(_.isFile).toList.map(_.toPath)
@@ -40,9 +45,6 @@ object EthereumMain {
     */
 
     /*
-    graph.triplets.collect.foreach(println(_))
-
-
     println(s"Global clustering coefficient: \n${ClusteringCoefficient.globalClusteringCoefficient(graph)}")
     println(s"Transitivity: \n${ClusteringCoefficient.transitivity(graph)}")
     println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageClusterCoefficient(graph)}")
@@ -52,7 +54,12 @@ object EthereumMain {
     // graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
     */
     val greatestSubgraph: Graph[String, Long] = graphUtils.getSubgraphs(graph, 1)
-    graphUtils.saveAsGEXF("resources/graph/graph.gexf", greatestSubgraph)
+    greatestSubgraph.triplets.collect.foreach(println(_))
+
+    println("__________________________________________")
+
+    graphUtils.saveAsGEXF("resources/graph/graph.gexf",
+      CommunityDetection.labelPropagation(greatestSubgraph, 5))
 
     spark.stop()
 
