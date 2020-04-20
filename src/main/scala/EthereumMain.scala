@@ -59,7 +59,7 @@ object EthereumMain {
     println("__________________________________________")
 
     graphUtils.saveAsGEXF("resources/graph/graph.gexf",
-      CommunityDetection.labelPropagation(greatestSubgraph, 5))
+      CommunityDetection.labelPropagation(greatestSubgraph, 100))
 
     spark.stop()
 

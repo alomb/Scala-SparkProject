@@ -25,7 +25,7 @@ object CommunityDetection {
      * evaluate which cluster to choose depending on the maximum count
      */
     @scala.annotation.tailrec
-    def iteration(graph: Graph[VertexId, E], step: Int): Graph[VertexId, E] = {
+    def iteration(graph: Graph[VertexId, E], step: Int): (Graph[VertexId, E], Int) = {
       val vertices: RDD[(VertexId, VertexId)] = graph.aggregateMessages[Map[VertexId, Long]](
         sendMsg = triplet => {
           triplet.sendToDst(Map[VertexId, Long]((triplet.srcAttr, 1)))
@@ -39,18 +39,25 @@ object CommunityDetection {
         }
       ).map(v => (v._1, v._2.maxBy(_._2)._1))
 
-      val result: Graph[VertexId, E] = Graph(vertices, graph.edges)
+      if (graph.vertices.join(vertices).filter(v => v._2._1 != v._2._2).count() == 0) {
+        (graph, step)
+      } else {
+        val result: Graph[VertexId, E] = Graph(vertices, graph.edges)
 
-      if (step > 0)
-        iteration(result, step - 1)
-      else
-        result
+        if (step > 0)
+          iteration(result, step - 1)
+        else
+          (result, step)
+      }
     }
 
     // Each node in the network initially creates a community.
     val result: Graph[VertexId, E] = initialGraph
       .mapVertices((id, _) => id)
 
-    iteration(result, maxSteps)
+    val finalResult = iteration(result, maxSteps)
+
+    println(s"Computed steps: ${maxSteps - finalResult._2}")
+    finalResult._1
   }
 }
