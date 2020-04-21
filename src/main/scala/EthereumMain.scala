@@ -1,7 +1,7 @@
 import java.nio.file.Path
 
 import client.writer.CSVWriter._
-import graph.{CommunityDetection, GraphUtils}
+import graph.{CommunityDetection, GraphUtils, Modularity}
 import org.apache.spark.graphx.Graph
 import org.apache.spark.sql.SparkSession
 
@@ -58,8 +58,14 @@ object EthereumMain {
 
     println("__________________________________________")
 
+    /*
     graphUtils.saveAsGEXF("resources/graph/graph.gexf",
       CommunityDetection.labelPropagation(greatestSubgraph, 100))
+    */
+
+    val clusteredGraph = CommunityDetection.labelPropagation(greatestSubgraph, 15)
+    graphUtils.saveAsGEXF("resources/graph/graph.gexf", clusteredGraph)
+    println(s"Modularity; ${Modularity.compute(clusteredGraph)}")
 
     spark.stop()
 

@@ -28,8 +28,8 @@ object CommunityDetection {
     def iteration(graph: Graph[VertexId, E], step: Int): (Graph[VertexId, E], Int) = {
       val vertices: RDD[(VertexId, VertexId)] = graph.aggregateMessages[Map[VertexId, Long]](
         sendMsg = triplet => {
-          triplet.sendToDst(Map[VertexId, Long]((triplet.srcAttr, 1)))
-          triplet.sendToSrc(Map[VertexId, Long]((triplet.dstAttr, 1)))
+          triplet.sendToDst(Map[VertexId, Long]((triplet.srcAttr, 1L)))
+          triplet.sendToSrc(Map[VertexId, Long]((triplet.dstAttr, 1L)))
         },
         mergeMsg = (m1, m2) => {
           // Merge the two maps summing the values stored in both initial maps
@@ -37,7 +37,7 @@ object CommunityDetection {
             case (k, v) => k -> (v + m1.getOrElse(k, 0L))
           }
         }
-      ).map(v => (v._1, v._2.maxBy(_._2)._1))
+      ).mapValues(v => v.maxBy(_._2)._1).cache()
 
       if (graph.vertices.join(vertices).filter(v => v._2._1 != v._2._2).count() == 0) {
         (graph, step)

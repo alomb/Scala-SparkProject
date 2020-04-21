@@ -89,7 +89,7 @@ class GraphUtils(spark: SparkSession) {
     val subgraphVertices: Set[VertexId] = graph.connectedComponents
         .vertices
         .map(v => (v._2, Set(v._1)))
-        .reduceByKey((v1, v2) => v1 ++ v2)
+        .reduceByKey(_ ++ _)
         .top(quantity)(ordering)
         .map(v => v._2)
         .reduce(_ ++ _)
