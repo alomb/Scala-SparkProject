@@ -1,5 +1,7 @@
 package client.actors
 
+import java.nio.file.Paths
+
 import akka.actor.Actor
 import client.writer.CSVWriter._
 import client.writer.{CSVWriter, EdgeFileFormat, VerticeFileFormat}
@@ -17,11 +19,11 @@ trait Master extends Actor {
   def writeOnCSV(nodes: Seq[VerticeFileFormat], edges: Seq[EdgeFileFormat]): Unit = {
     if(nodes.nonEmpty && edges.nonEmpty) {
       val verticesWriter: CSVWriter[VerticeFileFormat] =
-        new CSVWriter[VerticeFileFormat](NodesPath, header = Some(VerticesFileHeader))
+        new CSVWriter[VerticeFileFormat](Paths.get(NodesFolderPath), header = Some(VerticesFileHeader))
       verticesWriter.appendBlock(nodes)
       verticesWriter.close()
       val edgesWriter: CSVWriter[EdgeFileFormat] =
-        new CSVWriter[EdgeFileFormat](EdgesPath, header = Some(EdgesFileHeader))
+        new CSVWriter[EdgeFileFormat](Paths.get(EdgesFolderPath), header = Some(EdgesFileHeader))
       edgesWriter.appendBlock(edges)
       edgesWriter.close()
     }

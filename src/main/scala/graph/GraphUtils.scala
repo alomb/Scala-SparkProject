@@ -1,10 +1,10 @@
 package graph
 
 import java.io.{BufferedWriter, FileWriter}
-import java.nio.file.{Files, Paths}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+import client.writer.CSVWriter.{EdgesFolderPath, NodesFolderPath}
 import client.writer.{EdgeFileFormat, VerticeFileFormat}
 import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
@@ -23,27 +23,18 @@ class GraphUtils(spark: SparkSession) {
 
   /***
    * Create a [[Graph]] from multiple csv files containing raw observations
-   * @param filesVertice collection of csv file paths containing addresses and associated information
-   * @param filesEdge collection of csv file paths containing transactions between addresses and associated information
+   *
+   * @param conf the [[Configuration]] used to load the files
    * @return a [[Graph]] from the data in the files. If the files are empty, or don't exist or have different quantities
    *         an empty graph is returned.
    */
-  def createGraphFromObs(filesVertice: Seq[String], filesEdge: Seq[String]): Graph[String, Long] = {
-    val existingVerticesPaths: Seq[String] = filesVertice.filter(f => Files.exists(Paths.get(f)))
-    val existingEdgesPaths: Seq[String] = filesEdge.filter(f => Files.exists(Paths.get(f)))
-
-    if(existingVerticesPaths.isEmpty ||
-      existingEdgesPaths.isEmpty ||
-      existingEdgesPaths.size != existingVerticesPaths.size) {
-
-      return Graph(spark.sparkContext.emptyRDD, spark.sparkContext.emptyRDD)
-    }
+  def createGraphFromObs(conf: Configuration): Graph[String, Long] = {
 
     val mapNodesIndex: collection.Map[String, VertexId] = spark.read
       .format("csv")
       .option("inferSchema", "true")
       .option("header", "true")
-      .load(existingVerticesPaths:_*)
+      .load(conf.getNodesFiles)
       .as[VerticeFileFormat]
       .rdd
       .mapPartitions(x => x.toList.distinct.toIterator)
@@ -55,7 +46,7 @@ class GraphUtils(spark: SparkSession) {
       .format("csv")
       .option("inferSchema", "true")
       .option("header", "true")
-      .load(existingEdgesPaths:_*)
+      .load(conf.getEdgesFiles)
       .as[EdgeFileFormat]
       .rdd
       .mapPartitions(x => x.toList.distinct.toIterator)
@@ -139,4 +130,43 @@ class GraphUtils(spark: SparkSession) {
     pw.write(gexf)
     pw.close()
   }
+}
+
+/**
+ * An execution configuration.
+ */
+sealed trait Configuration {
+
+  /**
+   * @return the path of the nodes files contained in the respective folder
+   */
+  def getNodesFiles: String
+
+  /**
+   * @return the path of the edges files contained in the respective folder
+   */
+  def getEdgesFiles: String
+}
+
+/**
+ * The remote execution configuration
+ * @param nodesFolderPath the folder in a S3 bucket containing the nodes of the graph
+ * @param edgesFolderPath the folder in a S3 bucket containing the edges of the graph
+ */
+case class AWSConfiguration(private val nodesFolderPath: String, private val edgesFolderPath: String) extends Configuration {
+  override def getNodesFiles: String = nodesFolderPath + "*"
+
+  override def getEdgesFiles: String = edgesFolderPath + "*"
+}
+
+/**
+ * The local configuration
+ */
+case class LocalConfiguration() extends Configuration {
+  private val nodesFilesPath: String = NodesFolderPath + "*"
+  private val edgesFilesPath: String = EdgesFolderPath + "*"
+
+  override def getNodesFiles: String = nodesFilesPath
+
+  override def getEdgesFiles: String = edgesFilesPath
 }

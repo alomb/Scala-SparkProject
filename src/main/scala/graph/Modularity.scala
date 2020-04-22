@@ -7,16 +7,24 @@ import scala.reflect.ClassTag
 
 /**
  * Compute the modularity of a clustered graph
+ * The modularity is a value between -0.5 ad 1 indicating  to measure the strength of division of a network into modules
+ * (also called groups, clusters or communities).  Networks with high modularity have dense connections between the
+ * nodes within modules but sparse connections between nodes in different modules.
+ *
  * More details on https://en.wikipedia.org/wiki/Modularity_(networks)
  */
 object Modularity {
 
   /**
-   * Compute the modularity of the given graph
+   * Compute the modularity of the given graph using a generalization of the original formula for measuring on a network
+   * partitioned into c (<= 2) communities
+   *
+   * @tparam  E the edge attribute type
+   *
    * @param graph the clustered graph, each node is associated to its cluster id
    * @return the modularity
    */
-  def compute[E: ClassTag](graph: Graph[VertexId, E]): Double = {
+  def run[E: ClassTag](graph: Graph[VertexId, E]): Double = {
     val edgesNumber: Double = graph.numEdges
 
     // Collapse the graph vertices into clusters
@@ -24,10 +32,14 @@ object Modularity {
       .map(v => (v._2, Set(v._1)))
       .reduceByKey((v1, v2) => v1 ++ v2)
 
-    // Collapse edges within vertices in the graph as self edges
+    /*
+      Maps edges between vertices in the same cluster as self edges.
+      Maps edges between vertices in different clusters as edges between clusters.
+    */
     val edges: RDD[Edge[E]] = graph.triplets
       .map(t => t.copy(t.srcAttr, t.dstAttr))
 
+    // Graph where each node is a cluster
     val graphOfClusters: Graph[Set[VertexId], E] = Graph[Set[VertexId], E](clusters, edges)
 
     graphOfClusters.aggregateMessages[Map[VertexId, Double]](
@@ -36,13 +48,16 @@ object Modularity {
         triplet.sendToSrc(Map[VertexId, Double]((triplet.dstId, 1.0)))
       },
       mergeMsg = (m1, m2) => {
-        // Merge the two maps summing the values stored in both initial maps
+        /*
+          Merge two maps summing the values stored in both initial maps.
+          The final value represents for each cluster the number of edges with another.
+        */
         m1 ++ m2.map {
           case (k, v) => k -> (v + m1.getOrElse(k, 0.0))
         }
       }
     ).mapValues(m => {
-      // Modularity for each cluster wrt to its connected clusters
+      // Modularity for each cluster wrt to its connected clusters.
       m.map(_._2 / (2.0 * edgesNumber)).sum - math.pow(m.values.sum / (2.0 * edgesNumber), 2)
     }).values
       .sum

@@ -1,11 +1,11 @@
 package client.writer
 
 import java.io.{BufferedWriter, File, FileWriter}
-import java.nio.file.{Path, Paths}
+import java.nio.file.Path
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-import CSVWriter._
+import client.writer.CSVWriter._
 
 /**
  *
@@ -43,11 +43,14 @@ class CSVWriter[F <: FileFormat](directory: Path,
 }
 
 object CSVWriter {
-  val NodesPath: Path = Paths.get("resources/client/nodes/")
-  val EdgesPath: Path = Paths.get("resources/client/edges/")
+  // Local resources paths
+  val NodesFolderPath = "resources/client/nodes/"
+  val EdgesFolderPath = "resources/client/edges/"
 
+  // CSV headers
   val VerticesFileHeader = List("address")
   val EdgesFileHeader = List("hash", "in", "out", "value")
 
+  // Format used to give the resulting files a name based on creation time
   private val PathFormat = "YYYYMMdd_HHmmss"
 }

@@ -2,10 +2,11 @@ lazy val root = (project in file("."))
   .settings(
     name := "Scala-SparkProject",
     scalaVersion := "2.11.12",
-    version := "0.1"
+    version := "0.1",
+    mainClass in Compile := Some("EthereumMain")
   )
 
-val sparkVersion = "2.4.5"
+val sparkVersion = "2.4.4"
 val akkaVersion = "10.1.11"
 
 libraryDependencies ++= Seq(

@@ -1,71 +1,39 @@
-import java.nio.file.Path
-
-import client.writer.CSVWriter._
-import graph.{CommunityDetection, GraphUtils, Modularity}
-import org.apache.spark.graphx.Graph
+import graph._
+import org.apache.spark.graphx.{Graph, VertexId}
 import org.apache.spark.sql.SparkSession
 
 object EthereumMain {
 
-  /**
-   * @param dir the directory path
-   * @return a list of files contained in the directory
-   */
-  def getListOfFiles(dir: Path): List[Path] = {
-    if (dir.toFile.exists && dir.toFile.isDirectory) {
-      dir.toFile.listFiles.filter(_.isFile).toList.map(_.toPath)
-    } else {
-      List[Path]()
-    }
-  }
-
   def main(args: Array[String]) {
     println("Program starts")
 
-    val spark: SparkSession = SparkSession.builder()
-      .master("local[*]")
-      .appName("Main")
-      .getOrCreate()
+    val conf: Configuration = if(args.length == 2) AWSConfiguration(args(0), args(1)) else LocalConfiguration()
+
+    val spark: SparkSession = conf match {
+      case _: AWSConfiguration =>
+        SparkSession.builder()
+          .appName("Main")
+          .getOrCreate()
+      case _: LocalConfiguration =>
+        SparkSession.builder()
+          .appName("Main")
+          .master("local[*]")
+          .getOrCreate()
+    }
 
     val graphUtils: GraphUtils = new GraphUtils(spark)
-    val graph: Graph[String, Long] = graphUtils.createGraphFromObs(getListOfFiles(NodesPath).map(_.toString),
-      getListOfFiles(EdgesPath).map(_.toString)).cache()
+    val graph: Graph[String, Long] = graphUtils.createGraphFromObs(conf)
 
-    //graph.pageRank(0.0001).vertices.foreach(println(_))
-
-    /*
-    val connectedComponentAddr: RDD[(VertexId, Iterable[String])] = graph
-      .connectedComponents
-      .vertices
-      .join(graph.vertices)
-      .map(_._2)
-      .groupByKey()
-
-    connectedComponentAddr.collect().foreach(println(_))
-    */
-
-    /*
     println(s"Global clustering coefficient: \n${ClusteringCoefficient.globalClusteringCoefficient(graph)}")
     println(s"Transitivity: \n${ClusteringCoefficient.transitivity(graph)}")
     println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageClusterCoefficient(graph)}")
     println("Local clustering coefficient: \n")
     ClusteringCoefficient.localClusteringCoefficient(graph).foreach(println(_))
 
-    // graphUtils.saveAsGEXF("resources/graph/graph.gexf", graph)
-    */
     val greatestSubgraph: Graph[String, Long] = graphUtils.getSubgraphs(graph, 1)
-    greatestSubgraph.triplets.collect.foreach(println(_))
+    val clusteredGraph: Graph[VertexId, Long] = CommunityDetection.labelPropagation(greatestSubgraph, 5)
 
-    println("__________________________________________")
-
-    /*
-    graphUtils.saveAsGEXF("resources/graph/graph.gexf",
-      CommunityDetection.labelPropagation(greatestSubgraph, 100))
-    */
-
-    val clusteredGraph = CommunityDetection.labelPropagation(greatestSubgraph, 15)
-    graphUtils.saveAsGEXF("resources/graph/graph.gexf", clusteredGraph)
-    println(s"Modularity; ${Modularity.compute(clusteredGraph)}")
+    println(s"Modularity; ${Modularity.run(clusteredGraph)}")
 
     spark.stop()
 
