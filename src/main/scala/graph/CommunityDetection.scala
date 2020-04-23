@@ -57,7 +57,7 @@ object CommunityDetection {
 
     val finalResult = iteration(result, maxSteps)
 
-    println(s"Computed steps: ${maxSteps - finalResult._2}")
+    println(s"Label Propagation terminated in ${maxSteps - finalResult._2} steps")
     finalResult._1
   }
 }

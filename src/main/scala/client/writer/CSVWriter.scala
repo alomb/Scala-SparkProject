@@ -43,7 +43,7 @@ class CSVWriter[F <: FileFormat](directory: Path,
 }
 
 object CSVWriter {
-  // Local resources paths
+  // Local resources paths for client
   val NodesFolderPath = "resources/client/nodes/"
   val EdgesFolderPath = "resources/client/edges/"
 

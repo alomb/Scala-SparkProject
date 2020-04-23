@@ -25,7 +25,8 @@ object Modularity {
    * @return the modularity
    */
   def run[E: ClassTag](graph: Graph[VertexId, E]): Double = {
-    val edgesNumber: Double = graph.numEdges
+    // Number of edges often referred as m
+    val m: Double = graph.numEdges
 
     // Collapse the graph vertices into clusters
     val clusters: RDD[(VertexId, Set[VertexId])] = graph.vertices
@@ -44,8 +45,15 @@ object Modularity {
 
     graphOfClusters.aggregateMessages[Map[VertexId, Double]](
       sendMsg = triplet => {
-        triplet.sendToDst(Map[VertexId, Double]((triplet.srcId, 1.0)))
-        triplet.sendToSrc(Map[VertexId, Double]((triplet.dstId, 1.0)))
+        if(triplet.dstId == triplet.srcId) {
+          triplet.sendToSrc(Map[VertexId, Double]((triplet.dstId, 0.5)))
+
+          triplet.sendToDst(Map[VertexId, Double]((triplet.srcId, 0.5)))
+        } else {
+          triplet.sendToSrc(Map[VertexId, Double]((triplet.dstId, 1.0)))
+
+          triplet.sendToDst(Map[VertexId, Double]((triplet.srcId, 1.0)))
+        }
       },
       mergeMsg = (m1, m2) => {
         /*
@@ -56,9 +64,16 @@ object Modularity {
           case (k, v) => k -> (v + m1.getOrElse(k, 0.0))
         }
       }
-    ).mapValues(m => {
-      // Modularity for each cluster wrt to its connected clusters.
-      m.map(_._2 / (2.0 * edgesNumber)).sum - math.pow(m.values.sum / (2.0 * edgesNumber), 2)
+    ).map(c => {
+      /*
+      * Modularity for each cluster wrt to its connected clusters.
+      *
+      * Could be roughly described as the fraction of edges bound inside the cluster minus the fraction of those which
+      * are connected to at least one vertex of the cluster. Greater the value better the clustering.*
+      */
+      val doubleM: Double = 2.0 * m
+      (c._1,
+        (c._2.filter(_._1 == c._1).values.sum / doubleM) - math.pow(c._2.values.sum / doubleM, 2))
     }).values
       .sum
   }

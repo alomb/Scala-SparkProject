@@ -4,7 +4,6 @@ import java.io.{BufferedWriter, FileWriter}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-import client.writer.CSVWriter.{EdgesFolderPath, NodesFolderPath}
 import client.writer.{EdgeFileFormat, VerticeFileFormat}
 import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
@@ -28,13 +27,13 @@ class GraphUtils(spark: SparkSession) {
    * @return a [[Graph]] from the data in the files. If the files are empty, or don't exist or have different quantities
    *         an empty graph is returned.
    */
-  def createGraphFromObs(conf: Configuration): Graph[String, Long] = {
+  def createGraphFromObs(conf: RunConfiguration): Graph[String, Long] = {
 
     val mapNodesIndex: collection.Map[String, VertexId] = spark.read
       .format("csv")
       .option("inferSchema", "true")
       .option("header", "true")
-      .load(conf.getNodesFiles)
+      .load(conf.nodesFolderPath + "*")
       .as[VerticeFileFormat]
       .rdd
       .mapPartitions(x => x.toList.distinct.toIterator)
@@ -46,7 +45,7 @@ class GraphUtils(spark: SparkSession) {
       .format("csv")
       .option("inferSchema", "true")
       .option("header", "true")
-      .load(conf.getEdgesFiles)
+      .load(conf.edgesFolderPath + "*")
       .as[EdgeFileFormat]
       .rdd
       .mapPartitions(x => x.toList.distinct.toIterator)
@@ -90,11 +89,11 @@ class GraphUtils(spark: SparkSession) {
   }
 
   /***
-   * Save the [[Graph]] as a gexf file to be visualized in Gephi
+   * Save the [[Graph]] as a gexf file to be visualized in Gephi.
    * @tparam V the vertex attribute type
    * @tparam E the edge attribute type
    *
-   * @param path the path of the created file
+   * @param path the path of the created file.
    * @param graph the graph to save.
    */
   def saveAsGEXF[V: ClassTag, E: ClassTag](path: String, graph: Graph[V, E]): Unit = {
@@ -125,48 +124,20 @@ class GraphUtils(spark: SparkSession) {
                           |    </edges>
                           |  </graph>
                           |</gexf>""".stripMargin
-
-    val pw: BufferedWriter = new BufferedWriter(new FileWriter(path))
-    pw.write(gexf)
-    pw.close()
+    try {
+      val pw: BufferedWriter = new BufferedWriter(new FileWriter(path))
+      pw.write(gexf)
+      pw.close()
+    } catch {
+      case e: Exception =>
+        println(s"An error occured during the creation of the .gexf file:\n ${e.getMessage}")
+    }
   }
 }
 
 /**
  * An execution configuration.
+ * @param nodesFolderPath the folder in a S3 bucket or local machine containing the nodes of the graph.
+ * @param edgesFolderPath the folder in a S3 bucket or local machine containing the edges of the graph
  */
-sealed trait Configuration {
-
-  /**
-   * @return the path of the nodes files contained in the respective folder
-   */
-  def getNodesFiles: String
-
-  /**
-   * @return the path of the edges files contained in the respective folder
-   */
-  def getEdgesFiles: String
-}
-
-/**
- * The remote execution configuration
- * @param nodesFolderPath the folder in a S3 bucket containing the nodes of the graph
- * @param edgesFolderPath the folder in a S3 bucket containing the edges of the graph
- */
-case class AWSConfiguration(private val nodesFolderPath: String, private val edgesFolderPath: String) extends Configuration {
-  override def getNodesFiles: String = nodesFolderPath + "*"
-
-  override def getEdgesFiles: String = edgesFolderPath + "*"
-}
-
-/**
- * The local configuration
- */
-case class LocalConfiguration() extends Configuration {
-  private val nodesFilesPath: String = NodesFolderPath + "*"
-  private val edgesFilesPath: String = EdgesFolderPath + "*"
-
-  override def getNodesFiles: String = nodesFilesPath
-
-  override def getEdgesFiles: String = edgesFilesPath
-}
+case class RunConfiguration(nodesFolderPath: String, edgesFolderPath: String)
