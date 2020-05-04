@@ -23,37 +23,41 @@ class GraphUtils(spark: SparkSession) {
   /***
    * Create a [[Graph]] from multiple csv files containing raw observations
    *
-   * @param conf the [[Configuration]] used to load the files
+   * @param conf the [[RunConfiguration]] used to load the files
    * @return a [[Graph]] from the data in the files. If the files are empty, or don't exist or have different quantities
    *         an empty graph is returned.
    */
   def createGraphFromObs(conf: RunConfiguration): Graph[String, Long] = {
 
-    val mapNodesIndex: collection.Map[String, VertexId] = spark.read
+    val nodes: RDD[(String, VertexId)] = spark.read
       .format("csv")
       .option("inferSchema", "true")
       .option("header", "true")
       .load(conf.nodesFolderPath + "*")
       .as[VerticeFileFormat]
       .rdd
-      .mapPartitions(x => x.toList.distinct.toIterator)
+      .distinct()
       .map{case VerticeFileFormat(s) => s}
       .zipWithIndex()
-      .collectAsMap()
 
-    val edges: RDD[Edge[Long]] = spark.read
+    val tmpEdges1: RDD[(String, (String, VertexId))] = spark.read
       .format("csv")
       .option("inferSchema", "true")
       .option("header", "true")
       .load(conf.edgesFolderPath + "*")
       .as[EdgeFileFormat]
       .rdd
-      .mapPartitions(x => x.toList.distinct.toIterator)
-      .map{case EdgeFileFormat(_, in, out, v) => Edge(mapNodesIndex(in), mapNodesIndex(out), v)}
+      .distinct()
+      .map{case EdgeFileFormat(_, in, out, v) => (in, (out, v))}
 
-    val nodes: RDD[(VertexId, String)] = sparkContext.parallelize(mapNodesIndex.map(v => (v._2, v._1)).toSeq)
+    // RDD[(address2, (VertexId1, value))]
+    val tmpEdges2: RDD[(String, (VertexId, Long))] = tmpEdges1.leftOuterJoin(nodes)
+      .map(m => (m._2._1._1, (m._2._2.get, m._2._1._2)))
 
-    Graph(nodes, edges)
+    val edges: RDD[Edge[Long]] = tmpEdges2.leftOuterJoin(nodes)
+      .map(m => Edge(m._2._1._1, m._2._2.get, m._2._1._2))
+
+    Graph(nodes.map(_.swap), edges)
   }
 
   /**

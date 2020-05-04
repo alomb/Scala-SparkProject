@@ -67,7 +67,7 @@ class Worker[D <: Domain, E <: Extraction](implicit val ex: Extractor[D, E],
 object Worker {
   /**
    * @param url The url used to create a GET request
-   * @param single If true the parse is on a single rows, a sequence otherwise
+   * @param single If true the parse is on a single JSON object, an array otherwise
    */
   case class Request(url: String, single: Boolean = false)
 }

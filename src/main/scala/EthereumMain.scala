@@ -10,6 +10,22 @@ import scala.util.Try
 object EthereumMain {
 
   /**
+   * Return the time spent runnign the code
+   *
+   * @tparam R the type returned by the code block
+   *
+   * @param codeBlock The code to run
+   *
+   * @return the [[Tuple2]] containing the result and the elapsed time
+   */
+  private def getElapsedTime[R](codeBlock: => R): (R, Double) = {
+    val start: Double = System.nanoTime()
+    val result: R = codeBlock
+    val end: Double = System.nanoTime()
+    (result, end - start)
+  }
+
+  /**
    * Execute some operations on the graph. If the resources folders passed as arguments start with "S3" the SparkSession
    * is configured to run remotely on AWS cloud for example via EMR services.
    *
@@ -25,6 +41,7 @@ object EthereumMain {
   def main(args: Array[String]) {
     println("Program started")
 
+    // Get command line arguments
     val localMode: Try[Boolean] = Try(
       if (args(0).substring(2) == "s3" && args(1).substring(2) == "s3")
         false
@@ -34,43 +51,51 @@ object EthereumMain {
         throw new IllegalStateException("Resources folder passed as arguments are inconsistent.")
     )
 
-    if(localMode.isSuccess) {
-      val spark: SparkSession = if (localMode.get) {
-        SparkSession.builder()
-          .appName("Scala-SparkProject Local")
-          .master("local[*]")
-          .getOrCreate()
-      } else {
-        SparkSession.builder()
-          .appName("Scala-SparkProject Remote")
-          .getOrCreate()
+    // Measure execution time
+    val result: (Unit, Double) = getElapsedTime({
+      if(localMode.isSuccess) {
+        // Configure Spark
+        val spark: SparkSession = if (localMode.get) {
+          SparkSession.builder()
+            .appName("Scala-SparkProject Local")
+            .master("local[*]")
+            .getOrCreate()
+        } else {
+          SparkSession.builder()
+            .appName("Scala-SparkProject Remote")
+            .getOrCreate()
+        }
+
+        // Graph creation
+        val graphUtils: GraphUtils = new GraphUtils(spark)
+        val conf: RunConfiguration = RunConfiguration(args(0), args(1))
+        val graph: Graph[String, Long] = graphUtils.createGraphFromObs(conf)
+        println(s"Graph created: ${graph.numVertices} vertices, ${graph.numEdges} edges")
+
+        // Clustering coefficients
+        println(s"Global clustering coefficient: \n${ClusteringCoefficient.globalClusteringCoefficient(graph)}")
+        println(s"Transitivity: \n${ClusteringCoefficient.transitivity(graph)}")
+        println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageClusterCoefficient(graph)}")
+        val localClustCoeff: Array[(VertexId, Double)] =
+          ClusteringCoefficient.localClusteringCoefficient(graph)
+        println(s"Local clustering coefficient (omitted cluster zeros = ${localClustCoeff.count(_._2 == 0)}):")
+        localClustCoeff.filter(_._2 != 0.0).foreach(println(_))
+
+        // Clustering on the biggest subgraph
+        val greatestSubgraph: Graph[String, Long] = graphUtils.getSubgraphs(graph, 1)
+        val clusteredGraph: Graph[VertexId, Long] = CommunityDetection.labelPropagation(greatestSubgraph, 5)
+        println(s"Modularity: ${Modularity.run(clusteredGraph)}")
+
+        // Save the clustered graph
+        if (localMode.get && Try(args(2)).isSuccess) {
+          graphUtils.saveAsGEXF(args(2), clusteredGraph)
+        }
+
+        spark.stop()
       }
+    })
 
-      val conf: RunConfiguration = RunConfiguration(args(0), args(1))
-
-      val graphUtils: GraphUtils = new GraphUtils(spark)
-      val graph: Graph[String, Long] = graphUtils.createGraphFromObs(conf)
-
-      println(s"Global clustering coefficient: \n${ClusteringCoefficient.globalClusteringCoefficient(graph)}")
-      println(s"Transitivity: \n${ClusteringCoefficient.transitivity(graph)}")
-      println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageClusterCoefficient(graph)}")
-      val localClustCoeff: Array[(VertexId, Double)] =
-        ClusteringCoefficient.localClusteringCoefficient(graph)
-      println(s"Local clustering coefficient (omitted cluster zeros = ${localClustCoeff.count(_._2 == 0)}):")
-      localClustCoeff.filter(_._2 != 0.0).foreach(println(_))
-
-      val greatestSubgraph: Graph[String, Long] = graphUtils.getSubgraphs(graph, 1)
-      val clusteredGraph: Graph[VertexId, Long] = CommunityDetection.labelPropagation(greatestSubgraph, 5)
-
-      println(s"Modularity: ${Modularity.run(clusteredGraph)}")
-
-      if (localMode.get && Try(args(2)).isSuccess) {
-        graphUtils.saveAsGEXF(args(2), clusteredGraph)
-      }
-
-      spark.stop()
-    }
-
-    println("Program ended" + { if(localMode.isFailure) " with errors:\n" + localMode.failed.get.getMessage })
+    println(s"Program ended in time ${result._2 / 1000000000.0} s "
+      + { if(localMode.isFailure) "with errors:\n" + localMode.failed.get.getMessage else ""})
   }
 }
