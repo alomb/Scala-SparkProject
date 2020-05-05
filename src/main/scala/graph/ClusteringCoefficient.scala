@@ -6,9 +6,8 @@ import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
 
 /**
- * Contains method to compute local and global clustering coefficients. It is suited for a directed graph, but global
- * clustering coefficients should work also on undirected graphs
- * General details on [[https://en.wikipedia.org/wiki/Clustering_coefficient]]
+ * Contains method to compute local and global clustering coefficients. The graph is generally considered as undirected.
+ * More details on [[https://en.wikipedia.org/wiki/Clustering_coefficient]]
  */
 object ClusteringCoefficient {
 
@@ -28,24 +27,7 @@ object ClusteringCoefficient {
   }
 
   /**
-   * Return a set containing the vertices with degree strictly greater than one
-   * @tparam V the vertex attribute type
-   * @tparam E the edge attribute type
-   *
-   * @param graph the analyzed graph
-   * @return a set containing vertices with degree greater than one
-   */
-  private def verticesWithDegreeGT1[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Set[VertexId] = {
-    graph.ops
-      .degrees
-      .filter(_._2 > 1)
-      .map(_._1)
-      .collect
-      .toSet
-  }
-
-  /**
-   * A clustering coefficient relative to each vertex of a *directed* graph
+   * A clustering coefficient relative to each vertex of am *undirected* graph
    * More details on [[https://en.wikipedia.org/wiki/Clustering_coefficient#Local_clustering_coefficient]]
    * @tparam V the vertex attribute type
    * @tparam E the edge attribute type
@@ -92,10 +74,11 @@ object ClusteringCoefficient {
         }).sum)
     })
 
-    // Compute the coefficient
-    neighbors.join(edgesBetweenNeighbors)
-      .filter(v => v._2._1.size >= 2)
-      .map(v => (v._1, v._2._2.toDouble / (v._2._1.size * (v._2._1.size - 1)).toDouble))
+    // Compute the coefficient applying the formula for each vertex
+    neighbors
+      .join(edgesBetweenNeighbors)
+      // Observe the 2.0 in the numerator is present only in the undirected graph formula
+      .map(v => (v._1, 2.0 * v._2._2.toDouble / (v._2._1.size * (v._2._1.size - 1)).toDouble))
       .collect
   }
 
@@ -109,29 +92,36 @@ object ClusteringCoefficient {
    * @return the global cluster coefficient
    */
   def globalClusteringCoefficient[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Double = {
-    // Exclude edges from and to the same vertex
-    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache()
-
-    val considerableVertices: Set[VertexId] = verticesWithDegreeGT1(newGraph)
+    // Exclude edges from and to the same vertex and merge multiple edges
+    val newGraph: Graph[V, E] = graph
+      .groupEdges((e1, _) => e1)
+      .subgraph(e => e.dstId != e.srcId)
+      .cache
 
     /*
       Number of triangles for each vertex and then filter those that have degree less than two.
       Filtering here is not strictly necessary but they will be excluded later
     */
-    val closedTriplets: VertexRDD[Int] = newGraph.triangleCount()
+    val closedTriplets: VertexRDD[Int] = newGraph
+      .triangleCount()
+      .filter(g =>
+        g.outerJoinVertices(g.degrees) {(_, _, deg) => deg.getOrElse(0)},
+        vpred = (_: VertexId, deg:Int) => deg > 1)
       .vertices
-      .filter(v => considerableVertices.contains(v._1))
 
     /*
       Number of possible triplets (close or open) as the number of possible adjacent edges pairs, for each vertex.
       Filtering is necessary, otherwise could be a problem computing the pairs
     */
-    val possibleTriplets: RDD[(VertexId, Int)] = newGraph.ops
+    val possibleTriplets: RDD[(VertexId, Int)] = newGraph
       .degrees
-      .filter(v => considerableVertices.contains(v._1))
+      .filter(_._2 > 1)
       .map(v => (v._1, pairs(v._2)))
 
-    (1.0 / considerableVertices.size.toDouble) *
+    (1.0 / newGraph
+      .filter(g =>
+        g.outerJoinVertices(g.degrees) {(_, _, deg) => deg.getOrElse(0)},
+        vpred = (_: VertexId, deg:Int) => deg > 1).numVertices) *
       closedTriplets.join(possibleTriplets).map(v => v._2._1.toDouble / v._2._2.toDouble).sum()
   }
 
@@ -146,26 +136,28 @@ object ClusteringCoefficient {
    * @return the graph transitivity
    */
   def transitivity[V: ClassTag, E: ClassTag](graph: Graph[V, E]): Double = {
-
-    // Exclude edges from and to the same vertex
-    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache()
-
-    // Vertices with degree greater or equal than two
-    val considerableVertices: Set[VertexId] = verticesWithDegreeGT1(newGraph)
+    // Exclude edges from and to the same vertex and merge multiple edges
+    val newGraph: Graph[V, E] = graph
+      .groupEdges((e1, _) => e1)
+      .subgraph(e => e.dstId != e.srcId)
+      .cache
 
     // Number of triangles in the graph
-    val triangles: Double = newGraph.triangleCount()
+    val triangles: Double = newGraph
+      .triangleCount()
+      .filter(g =>
+        g.outerJoinVertices(g.degrees) {(_, _, deg) => deg.getOrElse(0)},
+        vpred = (_: VertexId, deg:Int) => deg > 1)
       .vertices
-      .filter(v => considerableVertices.contains(v._1))
       .map(_._2)
       .sum / 3.0
 
     // Number of possible triplets (close or open) in the graph
-    val allPossibleTriplets: Double = newGraph.ops
+    val allPossibleTriplets: Double = newGraph
       .degrees
-      .filter(v => considerableVertices.contains(v._1))
+      .filter(_._2 > 1)
       .map(v => pairs(v._2))
-      .sum / 3.0
+      .sum
 
     3.0 * triangles / allPossibleTriplets
   }
