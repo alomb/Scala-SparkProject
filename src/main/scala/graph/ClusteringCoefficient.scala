@@ -165,7 +165,7 @@ object ClusteringCoefficient {
       .degrees
       .filter(v => considerableVertices.contains(v._1))
       .map(v => pairs(v._2))
-      .sum
+      .sum / 3.0
 
     3.0 * triangles / allPossibleTriplets
   }
