@@ -145,9 +145,6 @@ object ClusteringCoefficient {
     // Number of triangles in the graph
     val triangles: Double = newGraph
       .triangleCount()
-      .filter(g =>
-        g.outerJoinVertices(g.degrees) {(_, _, deg) => deg.getOrElse(0)},
-        vpred = (_: VertexId, deg:Int) => deg > 1)
       .vertices
       .map(_._2)
       .sum / 3.0

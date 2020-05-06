@@ -78,13 +78,16 @@ object EthereumMain {
         println(s"Average clustering coefficient: \n${ClusteringCoefficient.averageClusterCoefficient(graph)}")
         val localClustCoeff: Array[(VertexId, Double)] =
           ClusteringCoefficient.localClusteringCoefficient(graph)
-        println(s"Local clustering coefficient (omitted cluster zeros = ${localClustCoeff.count(_._2 == 0)}):")
+        println(s"Local clustering coefficient (omitted ${localClustCoeff.count(_._2 == 0)} vertices, coefficient = 0)")
         localClustCoeff.filter(_._2 != 0.0).foreach(println(_))
+        println(s"Showed ${localClustCoeff.count(_._2 != 0)} vertices")
 
         // Clustering on the biggest subgraph
         val greatestSubgraph: Graph[String, Long] = graphUtils.getSubgraphs(graph, 1)
+        println(s"Greatest subgraph: ${greatestSubgraph.numVertices} vertices, ${greatestSubgraph.numEdges} edges")
         val clusteredGraph: Graph[VertexId, Long] = CommunityDetection.labelPropagation(greatestSubgraph, 5)
-        println(s"Modularity: ${Modularity.run(clusteredGraph)}")
+        println(s"Clusters found: ${clusteredGraph.vertices.map(_.swap).reduceByKey((_, _) => 0).collect.length}")
+        println(s"Modularity of the greatest subgraph: ${Modularity.run(clusteredGraph)}")
 
         // Save the clustered graph
         if (localMode.get && Try(args(2)).isSuccess) {

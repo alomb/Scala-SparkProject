@@ -56,8 +56,6 @@ class ClusterCoefficientTest extends FlatSpec {
         Edge(5L, 6L)))
     val graph: Graph[String, Unit] = Graph(vertices, edges)
 
-    ClusteringCoefficient.localClusteringCoefficient(graph).foreach(println(_))
-
     assert(ClusteringCoefficient.localClusteringCoefficient(graph) sameElements Array[(VertexId, Double)](
       (1,0.6666666666666666),
       (2,0.6666666666666666),
