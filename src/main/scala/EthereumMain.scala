@@ -19,9 +19,9 @@ object EthereumMain {
    * @return the [[Tuple2]] containing the result and the elapsed time
    */
   private def getElapsedTime[R](codeBlock: => R): (R, Double) = {
-    val start: Double = System.nanoTime()
+    val start: Double = System.nanoTime
     val result: R = codeBlock
-    val end: Double = System.nanoTime()
+    val end: Double = System.nanoTime
     (result, end - start)
   }
 
@@ -56,14 +56,14 @@ object EthereumMain {
       if(localMode.isSuccess) {
         // Configure Spark
         val spark: SparkSession = if (localMode.get) {
-          SparkSession.builder()
+          SparkSession.builder
             .appName("Scala-SparkProject Local")
             .master("local[*]")
-            .getOrCreate()
+            .getOrCreate
         } else {
-          SparkSession.builder()
+          SparkSession.builder
             .appName("Scala-SparkProject Remote")
-            .getOrCreate()
+            .getOrCreate
         }
 
         // Graph creation
@@ -94,7 +94,7 @@ object EthereumMain {
           graphUtils.saveAsGEXF(args(2), clusteredGraph)
         }
 
-        spark.stop()
+        spark.stop
       }
     })
 

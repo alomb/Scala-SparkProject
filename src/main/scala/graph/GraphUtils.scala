@@ -36,9 +36,9 @@ class GraphUtils(spark: SparkSession) {
       .load(conf.nodesFolderPath + "*")
       .as[VerticeFileFormat]
       .rdd
-      .distinct()
+      .distinct
       .map{case VerticeFileFormat(s) => s}
-      .zipWithIndex()
+      .zipWithIndex
 
     val tmpEdges1: RDD[(String, (String, VertexId))] = spark.read
       .format("csv")
@@ -47,7 +47,7 @@ class GraphUtils(spark: SparkSession) {
       .load(conf.edgesFolderPath + "*")
       .as[EdgeFileFormat]
       .rdd
-      .distinct()
+      .distinct
       .map{case EdgeFileFormat(_, in, out, v) => (in, (out, v))}
 
     // RDD[(address2, (VertexId1, value))]
@@ -106,11 +106,11 @@ class GraphUtils(spark: SparkSession) {
     val separator: String = "\n\t\t"
     val vertices: String = graph.vertices
       .map(v => s"""<node id=\"${v._1}\" label=\"${v._2}\" />""")
-      .collect()
+      .collect
       .mkString(separator)
     val edges: String = graph.edges
       .map(e => s"""<edge source=\"${e.srcId}\" target=\"${e.dstId}\" label=\"${e.attr}\" />""")
-      .collect()
+      .collect
       .mkString(separator)
 
     val gexf: String = s"""<?xml version="1.0" encoding="UTF-8"?>

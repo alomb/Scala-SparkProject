@@ -32,14 +32,18 @@ object CommunityDetection {
           triplet.sendToSrc(Map[VertexId, Long]((triplet.dstAttr, 1L)))
         },
         mergeMsg = (m1, m2) => {
-          // Merge the two maps summing the values stored in both initial maps
+          /*
+            Merge the two maps summing the values stored in both initial maps. ++ merge duplicate keys by taking the
+            value of the right hand operand.
+          */
           m1 ++ m2.map {
             case (k, v) => k -> (v + m1.getOrElse(k, 0L))
           }
         }
-      ).mapValues(v => v.maxBy(_._2)._1).cache()
+      ).mapValues(v => v.maxBy(_._2)._1).cache
 
-      if (graph.vertices.join(vertices).filter(v => v._2._1 != v._2._2).count() == 0) {
+      // If no vertex has changed we can stop the execution
+      if (graph.vertices.join(vertices).filter(v => v._2._1 != v._2._2).count == 0) {
         (graph, step)
       } else {
         val result: Graph[VertexId, E] = Graph(vertices, graph.edges)

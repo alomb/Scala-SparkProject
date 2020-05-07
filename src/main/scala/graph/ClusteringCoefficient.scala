@@ -44,7 +44,7 @@ object ClusteringCoefficient {
     */
 
     // Exclude edges from and to the same vertex
-    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache()
+    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache
 
     // Associate to each vertex its directed neighbors without considering the direction of the edge
     val neighbors: VertexRDD[Set[VertexId]] = newGraph
@@ -54,25 +54,23 @@ object ClusteringCoefficient {
           triplet.sendToSrc(Set(triplet.dstId))
         },
         mergeMsg = _ ++ _
-      ).cache()
+      ).cache
 
-    // Associate to each vertex the set of directed connected vertices considering the edge direction
-    val outNeighbors: Map[VertexId, Set[VertexId]] = Graph(neighbors, newGraph.edges)
-      .aggregateMessages[Set[VertexId]](
-        sendMsg = triplet => {
-          triplet.sendToSrc(Set(triplet.dstId))
-        },
-        mergeMsg = _ ++ _
-      ).collect.toMap
+    // Associate to each vertex's neighbor a set of its neighbors
+    val neighborsOfNeighbors: RDD[(VertexId, Map[VertexId, Set[VertexId]])] = neighbors
+      .cartesian(neighbors)
+      .filter(p => p._1._2.contains(p._2._1))
+      .map(p => (p._1._1, Map(p._2)))
+      .reduceByKey(_ ++ _)
 
-    // Count the edges between vertices belonging to each vertex neighborhood
-    val edgesBetweenNeighbors: RDD[(VertexId, Double)] = neighbors
-      .filter(_._2.size >= 2)
+    // For each vertex measure how many edges are between the neighbors
+    val edgesBetweenNeighbors: RDD[(VertexId, Double)] = neighborsOfNeighbors
+      .filter(_._2.size >=  2)
       .map(v => {
-        (v._1, v._2.toSeq.map(v2 => {
-          v._2.intersect(outNeighbors.getOrElse(v2, Set())).size
+        (v._1, v._2.keySet.map(v2 => {
+          v._2.keySet.intersect(v._2.getOrElse(v2, Set())).size
         }).sum)
-    })
+      })
 
     // Compute the coefficient applying the formula for each vertex
     neighbors
@@ -103,7 +101,7 @@ object ClusteringCoefficient {
       Filtering here is not strictly necessary but they will be excluded later
     */
     val closedTriplets: VertexRDD[Int] = newGraph
-      .triangleCount()
+      .triangleCount
       .filter(g =>
         g.outerJoinVertices(g.degrees) {(_, _, deg) => deg.getOrElse(0)},
         vpred = (_: VertexId, deg:Int) => deg > 1)
@@ -121,8 +119,12 @@ object ClusteringCoefficient {
     (1.0 / newGraph
       .filter(g =>
         g.outerJoinVertices(g.degrees) {(_, _, deg) => deg.getOrElse(0)},
-        vpred = (_: VertexId, deg:Int) => deg > 1).numVertices) *
-      closedTriplets.join(possibleTriplets).map(v => v._2._1.toDouble / v._2._2.toDouble).sum()
+        vpred = (_: VertexId, deg:Int) => deg > 1)
+      .numVertices) *
+      closedTriplets
+        .join(possibleTriplets)
+        .map(v => v._2._1.toDouble / v._2._2.toDouble)
+        .sum
   }
 
   /**
@@ -144,7 +146,7 @@ object ClusteringCoefficient {
 
     // Number of triangles in the graph
     val triangles: Double = newGraph
-      .triangleCount()
+      .triangleCount
       .vertices
       .map(_._2)
       .sum / 3.0
