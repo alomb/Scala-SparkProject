@@ -65,15 +65,20 @@ object ClusteringCoefficient {
 
     // For each vertex measure how many edges are between the neighbors
     val edgesBetweenNeighbors: RDD[(VertexId, Double)] = neighborsOfNeighbors
-      .filter(_._2.size >=  2)
       .map(v => {
-        (v._1, v._2.keySet.map(v2 => {
+        /*
+          For every neighbor count the number of common neighbors with the vertex v. The toSeq is necessary otherwise
+          from the keySet is generated a set and counters may miss. These counters are summed for each vertex and
+          finally, are divided by two because every edge is counted twice.
+        */
+        (v._1, v._2.keySet.toSeq.map(v2 => {
           v._2.keySet.intersect(v._2.getOrElse(v2, Set())).size
-        }).sum)
+        }).sum / 2.0)
       })
 
     // Compute the coefficient applying the formula for each vertex
     neighbors
+      .filter(_._2.size >=  2)
       .join(edgesBetweenNeighbors)
       // Observe the 2.0 in the numerator is present only in the undirected graph formula
       .map(v => (v._1, 2.0 * v._2._2.toDouble / (v._2._1.size * (v._2._1.size - 1)).toDouble))
