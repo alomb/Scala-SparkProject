@@ -44,7 +44,9 @@ object ClusteringCoefficient {
     */
 
     // Exclude edges from and to the same vertex
-    val newGraph: Graph[V, E] = graph.subgraph(e => e.dstId != e.srcId).cache
+    val newGraph: Graph[V, E] = graph
+      .subgraph(e => e.dstId != e.srcId)
+      .cache
 
     // Associate to each vertex its directed neighbors without considering the direction of the edge
     val neighbors: VertexRDD[Set[VertexId]] = newGraph
@@ -53,8 +55,8 @@ object ClusteringCoefficient {
           triplet.sendToDst(Set(triplet.srcId))
           triplet.sendToSrc(Set(triplet.dstId))
         },
-        mergeMsg = _ ++ _
-      ).cache
+        mergeMsg = _ ++ _)
+      .cache
 
     // Associate to each vertex's neighbor a set of its neighbors
     val neighborsOfNeighbors: RDD[(VertexId, Map[VertexId, Set[VertexId]])] = neighbors
@@ -65,23 +67,24 @@ object ClusteringCoefficient {
 
     // For each vertex measure how many edges are between the neighbors
     val edgesBetweenNeighbors: RDD[(VertexId, Double)] = neighborsOfNeighbors
-      .map(v => {
+      .mapValues(m =>
         /*
           For every neighbor count the number of common neighbors with the vertex v. The toSeq is necessary otherwise
           from the keySet is generated a set and counters may miss. These counters are summed for each vertex and
           finally, are divided by two because every edge is counted twice.
         */
-        (v._1, v._2.keySet.toSeq.map(v2 => {
-          v._2.keySet.intersect(v._2.getOrElse(v2, Set())).size
-        }).sum / 2.0)
-      })
+        m
+          .keySet
+          .toSeq
+          .map(v2 => m.keySet.intersect(m.getOrElse(v2, Set())).size)
+          .sum / 2.0)
 
     // Compute the coefficient applying the formula for each vertex
     neighbors
       .filter(_._2.size >=  2)
       .join(edgesBetweenNeighbors)
       // Observe the 2.0 in the numerator is present only in the undirected graph formula
-      .map(v => (v._1, 2.0 * v._2._2.toDouble / (v._2._1.size * (v._2._1.size - 1)).toDouble))
+      .mapValues(v => 2.0 * v._2.toDouble / (v._1.size * (v._1.size - 1)).toDouble)
       .collect
   }
 
@@ -119,7 +122,7 @@ object ClusteringCoefficient {
     val possibleTriplets: RDD[(VertexId, Int)] = newGraph
       .degrees
       .filter(_._2 > 1)
-      .map(v => (v._1, pairs(v._2)))
+      .mapValues(v => pairs(v))
 
     (1.0 / newGraph
       .filter(g =>

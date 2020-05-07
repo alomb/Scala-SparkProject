@@ -65,17 +65,17 @@ object Modularity {
         m1 ++ m2.map {
           case (k, v) => k -> (v + m1.getOrElse(k, 0.0))
         }
-      }
-    ).map(c =>
-      /*
-      * Modularity for each cluster wrt to its connected clusters.
-      *
-      * The rationale is the fraction of edges that fall within communities, minus the expected value of the same
-      * quantity if edges fall at random without regard for the community structure, which is the total degree of the
-      * cluster. Greater the value better is the analyzed clustering.
-      */
-      (c._1, (c._2.filter(_._1 == c._1).values.sum / (2.0 * m)) - math.pow(c._2.values.sum / (2.0 * m), 2))
-    ).values
+      })
+      .map(c =>
+        /*
+        * Modularity for each cluster wrt to its connected clusters.
+        *
+        * The rationale is the fraction of edges that fall within communities, minus the expected value of the same
+        * quantity if edges fall at random without regard for the community structure, which is the total degree of the
+        * cluster. Greater the value better is the analyzed clustering.
+        */
+        (c._1, (c._2.filter(_._1 == c._1).values.sum / (2.0 * m)) - math.pow(c._2.values.sum / (2.0 * m), 2)))
+      .values
       .sum
   }
 }
